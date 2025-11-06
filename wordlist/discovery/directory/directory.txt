@@ -78058,7 +78058,6 @@ ftopic-quote
 ftopic-reply
 ftopic132-0
 ftp
-ftp-
 ftp-guest
 ftp0
 ftp1
