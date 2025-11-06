@@ -142278,6 +142278,8 @@ planned
 planned giving
 planner
 planners
+planningppme
+ppme
 planneur
 planning
 planning_tools
@@ -142874,6 +142876,7 @@ pmadm
 pmadmin
 pmaf
 pmahidden
+tpme
 pmahome
 pmail
 pmainfoproj
