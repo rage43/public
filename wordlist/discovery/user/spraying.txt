@@ -1,0 +1,8 @@
+inventaire
+printer
+imprimante
+test
+stagiaire
+admin
+dev
+externe
