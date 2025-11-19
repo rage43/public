@@ -6,3 +6,6 @@ stagiaire
 admin
 dev
 externe
+telemaintenance
+mfa
+sharepoint
