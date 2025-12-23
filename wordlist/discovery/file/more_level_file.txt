@@ -1,4 +1,4 @@
 planningPME/token
-.htpassword
+.htpasswd
 SQL.php
 sql.php
