@@ -534,7 +534,7 @@ def main():
             # On utilise le cleanup manager pour filtrer aussi ces MDP
             for variant in default_rule.apply("dummy"):
                 if cleanup_manager and not cleanup_manager.is_valid(variant):
-                    generator.rejected_count += 1
+                    generator._rejected_count += 1
                     continue
                 
                 f.write(variant + '\n')
