@@ -1,6 +1,11 @@
 # Dossier de sortie - mots de passe générés
 output/
 
+# Fichiers de mots de passe - SENSIBLES !
+sample_passwords.txt
+*_passwords.txt
+test*.txt
+
 # Python
 __pycache__/
 *.py[cod]
