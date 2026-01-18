@@ -1,0 +1,76 @@
+{
+    "rules": {
+        "default_passwords": {
+            "enabled": true,
+            "priority": 1,
+            "description": "MDP par défaut (root, admin, password) - TOP 12"
+        },
+        "leetspeak": {
+            "enabled": true,
+            "priority": 10,
+            "description": "Substitutions (a→4, e→3)"
+        },
+        "case_variation": {
+            "enabled": true,
+            "priority": 20,
+            "description": "Variations de casse"
+        },
+        "numeric_suffix": {
+            "enabled": true,
+            "priority": 30,
+            "description": "Suffixes numériques (1, 123)"
+        },
+        "special_suffix": {
+            "enabled": true,
+            "priority": 40,
+            "description": "Suffixes spéciaux (!, @) - Max 2"
+        },
+        "year_suffix": {
+            "enabled": true,
+            "priority": 50,
+            "description": "Années (2024, 2025)"
+        },
+        "combination": {
+            "enabled": false,
+            "priority": 5,
+            "description": "DÉSACTIVÉ"
+        },
+        "duplication": {
+            "enabled": true,
+            "priority": 8,
+            "description": "Duplication (axido → axidoaxido)"
+        },
+        "hybrid_suffix": {
+            "enabled": true,
+            "priority": 35,
+            "description": "Hybrid (Campigli@1)"
+        },
+        "common_patterns": {
+            "enabled": false,
+            "priority": 45,
+            "description": "DÉSACTIVÉ"
+        }
+    },
+    "cleanup": {
+        "enabled": true,
+        "max_special_start": 2,
+        "max_special_end": 2,
+        "max_special_middle": 2,
+        "max_numeric_start": 0,
+        "max_numeric_end": 4,
+        "max_repeating_chars": 4,
+        "min_length": 4,
+        "max_length": 12,
+        "weak_short_threshold": 6
+    },
+    "output": {
+        "max_passwords": 500000000,
+        "max_disk_gb": 5,
+        "warn_passwords": 1000000,
+        "warn_disk_gb": 1
+    },
+    "generation": {
+        "batch_size": 10000,
+        "remove_duplicates": true
+    }
+}
