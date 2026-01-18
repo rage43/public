@@ -38,12 +38,12 @@
         "duplication": {
             "enabled": true,
             "priority": 8,
-            "description": "Duplication (axido → axidoaxido)"
+            "description": "Duplication (demo → demodemo)"
         },
         "hybrid_suffix": {
             "enabled": true,
             "priority": 35,
-            "description": "Hybrid (Campigli@1)"
+            "description": "Hybrid (Password@1)"
         },
         "common_patterns": {
             "enabled": false,

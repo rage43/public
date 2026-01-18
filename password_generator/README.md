@@ -73,7 +73,7 @@ python3 pwgen.py --hashcat-help
 | `numeric_suffix` | Suffixes numériques | pass → pass123 |
 | `special_suffix` | Suffixes spéciaux | pass → pass! |
 | `year_suffix` | Années | pass → pass2024 |
-| `hybrid_suffix` | Hybrides | campigli → Campigli@1 |
+| `hybrid_suffix` | Hybrides | password → Password@1 |
 | `combination` | Combinaisons | pass + 2025 → pass*2025 |
 | `duplication` | Duplication | test → testtest |
 | `common_patterns` | Patterns courants | pass → P@ssword1! |
