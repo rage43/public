@@ -11,7 +11,7 @@ class CombinationRule(BaseRule):
     Combine les mots de passe avec les nombres trouvés dans le fichier source.
     
     Exemples:
-    - axido + 25051505 → axido25051505, Axido*25051505, @Axi*25051505!@
+    - demo + 2020 → demo2020, Demo*2020, @Dem*2020!@
     - password + 2025 → password2025, Password*2025
     
     Cette règle nécessite que les nombres soient extraits en amont
@@ -19,7 +19,7 @@ class CombinationRule(BaseRule):
     """
     
     name = "combination"
-    description = "Combine MDP avec nombres du fichier (axido + 2025 → Axido*2025)"
+    description = "Combine MDP avec nombres du fichier (demo + 2025 → Demo*2025)"
     priority = 5  # S'exécute tôt pour créer des bases
     enabled = True
     
@@ -81,12 +81,12 @@ class DuplicationRule(BaseRule):
     Duplique le mot de passe.
     
     Exemples:
-    - axido → axidoaxido, ax1d0ax1d0
+    - demo → demodemo, d3m0d3m0
     - test → testtest, TestTest
     """
     
     name = "duplication"
-    description = "Duplication (axido → axidoaxido)"
+    description = "Duplication (demo → demodemo)"
     priority = 8
     enabled = True
     
@@ -120,13 +120,13 @@ class HybridSuffixRule(BaseRule):
     Génère des suffixes hybrides (lettres remplacées + chiffres).
     
     Exemples:
-    - campiglia → Campigli@1, Campigli@123
-    - axido → axido*25, axido*2025
+    - password → Password@1, Password@123
+    - demo → demo*25, demo*2025
     """
     
     name = "hybrid_suffix"
-    description = "Suffixes hybrides (Campigli@1, axido*25)"
-    priority = 35  # APRÈS numeric_suffix pour éviter le double suffixe (Campigli@1@2)
+    description = "Suffixes hybrides (Password@1, demo*25)"
+    priority = 35  # APRÈS numeric_suffix pour éviter le double suffixe (Password@1@2)
     enabled = True
     
     # Patterns de remplacement de la dernière lettre
