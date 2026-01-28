@@ -1,5 +1,10 @@
 # 🔐 PWGen - Générateur de Mots de Passe Intelligent
 
+tips  de mdp 
+ Jean MArcolm :
+ - jeamarc => 3 premiers lettre de chaque mots
+
+
 **PWGen** est un générateur de wordlists personnalisées pour le password cracking. Il applique des règles de mutation intelligentes sur une liste de mots de passe source pour générer des variations réalistes.
 
 ## ✨ Fonctionnalités
