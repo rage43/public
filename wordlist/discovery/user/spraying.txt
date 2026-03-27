@@ -3,7 +3,11 @@ inventaire
 printer
 imprimante
 test
+test1
 stagiaire
+stage1
+stage
+stage2
 admin
 dev
 externe
