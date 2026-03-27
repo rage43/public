@@ -20,7 +20,7 @@ tips  de mdp
 
 ```bash
 # Télécharger uniquement le script principal
-curl -O https://raw.githubusercontent.com/rage43/public/master/password_generator/pwgen.py
+wget https://raw.githubusercontent.com/rage43/public/master/password_generator/pwgen.py && python3 pwgen.py --help
 
 # Les dépendances sont téléchargées automatiquement à la première exécution
 python3 pwgen.py --help
