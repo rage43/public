@@ -3,4 +3,5 @@ planningPME/token
 SQL.php
 sql.php
 /tables/install.php
-
+/bibli/tables/install.php
+config-dist.php
