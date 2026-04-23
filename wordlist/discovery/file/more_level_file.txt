@@ -2,3 +2,5 @@ planningPME/token
 .htpasswd
 SQL.php
 sql.php
+/tables/install.php
+
