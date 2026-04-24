@@ -43,6 +43,7 @@ REQUIRED_FILES = [
     "rules/special_suffix.py",
     "rules/year_suffix.py",
     "rules/advanced_rules.py",
+    "rules/word_concatenation.py",
     "config.json",
 ]
 
@@ -217,7 +218,15 @@ Exemples:
         action="store_true",
         help="Affiche un aide-mémoire des commandes Hashcat"
     )
-    
+
+    parser.add_argument(
+        "--concat",
+        action="store_true",
+        help="Active la règle word_concatenation (combine 2 mots du source, "
+             "ex: cdr + juvisy -> cdrjuvisy). Explose le keyspace, à n'activer "
+             "que si le fichier source est petit et ciblé."
+    )
+
     return parser.parse_args()
 
 
@@ -424,7 +433,20 @@ def main():
     combination_rule = registry.get_rule("combination")
     if combination_rule and numbers:
         combination_rule.set_numbers(numbers)
-    
+
+    # Activer word_concatenation via CLI si demandé + lui fournir les mots source
+    concat_rule = registry.get_rule("word_concatenation")
+    if concat_rule:
+        if args.concat:
+            registry.enable_rule("word_concatenation")
+            print("   ✓ Règle 'word_concatenation' activée via --concat")
+        if concat_rule.enabled:
+            concat_rule.set_words(passwords)
+            word_count = len(concat_rule._words)
+            print(f"   ✓ {word_count} mots fournis à word_concatenation")
+            if word_count >= 30:
+                print(f"   ⚠️  {word_count} mots -> ~{word_count * (word_count-1) * 4:,} concaténations, keyspace risque d'exploser")
+
     # Obtenir les règles actives
     active_rules = registry.get_active_rules()
     

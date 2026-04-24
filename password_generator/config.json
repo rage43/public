@@ -49,6 +49,11 @@
             "enabled": false,
             "priority": 45,
             "description": "DÉSACTIVÉ"
+        },
+        "word_concatenation": {
+            "enabled": false,
+            "priority": 3,
+            "description": "Concatène 2 mots du source (activable via --concat)"
         }
     },
     "cleanup": {

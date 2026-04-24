@@ -15,6 +15,7 @@ from .year_suffix import YearSuffixRule
 from .advanced_rules import CombinationRule, DuplicationRule, HybridSuffixRule
 from .common_patterns import CommonPatternsRule
 from .default_passwords import DefaultPasswordsRule
+from .word_concatenation import WordConcatenationRule
 
 
 class RuleRegistry:
@@ -32,6 +33,7 @@ class RuleRegistry:
         "hybrid_suffix": HybridSuffixRule,
         "common_patterns": CommonPatternsRule,
         "default_passwords": DefaultPasswordsRule,
+        "word_concatenation": WordConcatenationRule,
     }
     
     def __init__(self):
@@ -133,4 +135,5 @@ __all__ = [
     "HybridSuffixRule",
     "CommonPatternsRule",
     "DefaultPasswordsRule",
+    "WordConcatenationRule",
 ]
