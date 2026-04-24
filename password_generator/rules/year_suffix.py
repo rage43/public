@@ -37,7 +37,8 @@ class YearSuffixRule(BaseRule):
         ]
     
     # Séparateurs limités pour les années
-    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-"]
+    # `;` et `:` ajoutés pour couvrir les patterns pro FR (ex: Martin;2024)
+    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-", ";", ":"]
     
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations avec années et séparateurs."""

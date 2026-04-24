@@ -60,7 +60,7 @@
         "max_numeric_end": 4,
         "max_repeating_chars": 4,
         "min_length": 4,
-        "max_length": 12,
+        "max_length": 14,
         "weak_short_threshold": 6
     },
     "output": {

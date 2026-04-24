@@ -147,16 +147,41 @@ class MinLengthFilter(CleanupFilter):
 
 
 class MaxLengthFilter(CleanupFilter):
-    """Rejette les MDP trop longs (>12 caractères)."""
-    
+    """
+    Rejette les MDP trop longs.
+
+    Longueur adaptative : les bases composées (raison sociale "Blc-Conseil",
+    patronyme "Jean-Pierre", login "jean_dupont", ville "Aix-En-Provence")
+    sont plus longues par nature -> limite plus souple.
+
+    Détection "compound" intelligente : un séparateur de mot doit être encadré
+    PAR DEUX LETTRES (pattern letter-sep-letter). Ça évite les faux positifs
+    comme `password.2024` où `.` n'est qu'un séparateur de suffixe numérique
+    (pattern letter-sep-digit).
+    """
+
     name = "max_length"
-    description = "Rejette les MDP de plus de 12 caractères"
-    
-    def __init__(self, max_length: int = 12):
+    description = "Rejette les MDP trop longs (limite souple si base composée)"
+
+    # Séparateurs de mot (aligné avec CaseVariationRule.WORD_SEPARATORS)
+    COMPOUND_SEPARATORS = frozenset("-_. '")
+
+    def __init__(self, max_length: int = 14, max_length_compound: int = 16):
         self.max_length = max_length
-    
+        self.max_length_compound = max_length_compound
+
+    @classmethod
+    def _is_compound(cls, password: str) -> bool:
+        """True si le MDP contient un pattern lettre-séparateur-lettre."""
+        for i in range(1, len(password) - 1):
+            if password[i] in cls.COMPOUND_SEPARATORS:
+                if password[i - 1].isalpha() and password[i + 1].isalpha():
+                    return True
+        return False
+
     def is_valid(self, password: str) -> bool:
-        return len(password) <= self.max_length
+        limit = self.max_length_compound if self._is_compound(password) else self.max_length
+        return len(password) <= limit
 
 
 class NoOnlySpecialFilter(CleanupFilter):

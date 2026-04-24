@@ -27,10 +27,15 @@ class NumericSuffixRule(BaseRule):
         "1", "2", "12", "123", "1234",  # Séquences
         "!!", "69", "99", "007",   # Populaires
         "01", "07",                 # Jours
+        # Codes département FR (grandes métropoles) : Paris, Marseille, Lyon,
+        # Bordeaux, Nantes, Toulouse, Lille. Fréquents dans les MDP pro FR
+        # (ex: BlcConseil;75, Martin33).
+        "75", "13", "69", "33", "44", "31", "59",
     ]
-    
+
     # Séparateurs courants
-    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-"]
+    # `;` et `:` ajoutés car utilisés dans les MDP pro FR (ex: Blc-Conseil;75)
+    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-", ";", ":"]
     
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations avec suffixes numériques et séparateurs."""
