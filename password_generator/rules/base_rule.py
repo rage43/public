@@ -35,6 +35,15 @@ class BaseRule(ABC):
     description: str = "Description de la règle"
     enabled: bool = True
     priority: int = 50  # 0-100, les plus basses s'exécutent en premier
+
+    # Limite globale de longueur (alignée sur cleanup.max_length).
+    # Configurée par pwgen.py au démarrage. Les règles de suffixe l'utilisent
+    # pour court-circuiter avant de générer un MDP qui sera de toute façon
+    # rejeté par MaxLengthFilter.
+    max_length: int = 14
+
+    # Caractères considérés comme "spéciaux" (utilisé par les anti-double-suffix)
+    SPECIAL_CHARS = frozenset("!@#$%^&*()_+-=[]{}|;':\",./<>?`~")
     
     @abstractmethod
     def apply(self, password: str) -> Generator[str, None, None]:

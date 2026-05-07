@@ -82,12 +82,23 @@ class LeetFirstYearRule(BaseRule):
         if len(password) < 2:
             return
 
+        # Anti-double-suffix : si déjà 4 chiffres à la fin, on saute
+        if len(password) >= 4 and password[-4:].isdigit():
+            return
+
+        max_len = self.max_length
         for base in self._base_variations(password):
+            base_len = len(base)
             for year in self._years:
+                core_len = base_len + len(year)
+                if core_len > max_len:
+                    continue  # même sans spéciaux, déjà trop long
+                room = max_len - core_len
                 for special in self.TRAILING_SPECIALS:
                     for n in self.REPEAT_COUNTS:
-                        suffix = special * n
-                        yield base + year + suffix
+                        if n > room:
+                            continue
+                        yield base + year + (special * n)
 
     def estimate_factor(self) -> int:
         """

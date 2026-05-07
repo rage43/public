@@ -39,8 +39,21 @@ class NumericSuffixRule(BaseRule):
     
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations avec suffixes numériques et séparateurs."""
+        # Anti-double-suffix : si déjà chiffres à la fin, on saute
+        # (évite "demo2024" + "1" -> "demo20241" garbage)
+        if password and password[-1].isdigit():
+            return
+
+        # Early-exit longueur : suffixe minimum = 1 char (sep="" + "1")
+        # Si même le plus court dépasse, on arrête.
+        if len(password) + 1 > self.max_length:
+            return
+
+        max_room = self.max_length - len(password)
         for suffix in self.COMMON_SUFFIXES:
             for sep in self.SEPARATORS:
+                if len(sep) + len(suffix) > max_room:
+                    continue
                 yield password + sep + suffix
     
     def estimate_factor(self) -> int:

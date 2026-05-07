@@ -93,21 +93,25 @@ class DuplicationRule(BaseRule):
     def apply(self, password: str) -> Generator[str, None, None]:
         """
         Duplication intelligente : motmot ou Motmot.
-        
+
         patterns:
         - motmot, mot*mot
         - Motmot, Mot*mot
         """
+        # Early-exit : la duplication double la longueur, inutile si déjà trop long
+        if 2 * len(password) > self.max_length:
+            return
+
         p_lower = password.lower()
         p_cap = p_lower.capitalize()
-        
+
         # Séparateurs limités
         separators = ["", "*"]
-        
+
         for sep in separators:
             # mot + sep + mot (motmot, mot*mot)
             yield p_lower + sep + p_lower
-            
+
             # Mot + sep + mot (Motmot, Mot*mot)
             yield p_cap + sep + p_lower
 
@@ -145,20 +149,32 @@ class HybridSuffixRule(BaseRule):
         """Génère les suffixes hybrides."""
         if len(password) < 2:
             return
-        
+
+        # Anti-double-suffix : si déjà chiffres à la fin, on saute
+        if password[-1].isdigit():
+            return
+
         # Dernière lettre remplacée + chiffre
         last_char = password[-1].lower()
         base = password[:-1]
-        
+
         if last_char in self.LETTER_REPLACEMENTS:
+            # base + replacement = même longueur que password ; +num au final
+            max_room = self.max_length - len(password)
+            if max_room < 1:
+                return
             for replacement in self.LETTER_REPLACEMENTS[last_char]:
                 # Version basique
                 for num in self.SHORT_NUMBERS:
+                    if len(num) > max_room:
+                        continue
                     yield base + replacement + num
-                
-                # Version capitalisée
+
+                # Version capitalisée (longueur identique)
                 cap_base = base.capitalize()
                 for num in self.SHORT_NUMBERS:
+                    if len(num) > max_room:
+                        continue
                     yield cap_base + replacement + num
     
     def estimate_factor(self) -> int:

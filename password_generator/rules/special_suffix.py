@@ -34,7 +34,18 @@ class SpecialSuffixRule(BaseRule):
     
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations avec suffixes spéciaux."""
+        # Anti-double-suffix : si finit déjà par un spécial, on saute
+        # (évite "demo!" + "@" -> "demo!@" qui ressemble à du bruit cascadé)
+        if password and password[-1] in self.SPECIAL_CHARS:
+            return
+
+        max_room = self.max_length - len(password)
+        if max_room < 1:
+            return
+
         for suffix in self.COMMON_SUFFIXES:
+            if len(suffix) > max_room:
+                continue
             yield password + suffix
     
     def estimate_factor(self) -> int:

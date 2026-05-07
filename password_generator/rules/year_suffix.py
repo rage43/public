@@ -42,8 +42,19 @@ class YearSuffixRule(BaseRule):
     
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations avec années et séparateurs."""
+        # Anti-double-suffix : si les 4 derniers chars sont déjà des chiffres
+        # (probablement déjà une année), on saute pour éviter "demo2024" + "2025".
+        if len(password) >= 4 and password[-4:].isdigit():
+            return
+
+        max_room = self.max_length - len(password)
+        if max_room < 2:  # plus court suffixe = "25" (YY sans sep)
+            return
+
         for suffix in self._suffixes:
             for sep in self.SEPARATORS:
+                if len(sep) + len(suffix) > max_room:
+                    continue
                 yield password + sep + suffix
     
     def estimate_factor(self) -> int:

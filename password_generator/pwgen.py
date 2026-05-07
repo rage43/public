@@ -387,6 +387,7 @@ def main():
         from core.generator import PasswordGenerator
         from core.cleanup import CleanupManager
         from rules import RuleRegistry
+        from rules.base_rule import BaseRule
     except ImportError as e:
         print(f"❌ Erreur d'import: {e}")
         print("   Essayez: python pwgen.py --update")
@@ -447,6 +448,10 @@ def main():
                 cleanup_config = full_conf.get("cleanup", {})
         except Exception:
             pass
+
+    # Propager max_length aux règles pour court-circuit pendant la génération
+    # (évite de construire un MDP qui sera ensuite rejeté par MaxLengthFilter)
+    BaseRule.max_length = cleanup_config.get("max_length", 14)
     
     # Configurer les règles de combinaison avec les nombres extraits
     combination_rule = registry.get_rule("combination")
