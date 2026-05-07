@@ -16,6 +16,7 @@ from .advanced_rules import CombinationRule, DuplicationRule, HybridSuffixRule
 from .common_patterns import CommonPatternsRule
 from .default_passwords import DefaultPasswordsRule
 from .word_concatenation import WordConcatenationRule
+from .leet_first_year import LeetFirstYearRule
 
 
 class RuleRegistry:
@@ -34,6 +35,7 @@ class RuleRegistry:
         "common_patterns": CommonPatternsRule,
         "default_passwords": DefaultPasswordsRule,
         "word_concatenation": WordConcatenationRule,
+        "leet_first_year": LeetFirstYearRule,
     }
     
     def __init__(self):
@@ -136,4 +138,5 @@ __all__ = [
     "CommonPatternsRule",
     "DefaultPasswordsRule",
     "WordConcatenationRule",
+    "LeetFirstYearRule",
 ]

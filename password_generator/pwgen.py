@@ -44,6 +44,7 @@ REQUIRED_FILES = [
     "rules/year_suffix.py",
     "rules/advanced_rules.py",
     "rules/word_concatenation.py",
+    "rules/leet_first_year.py",
     "config.json",
 ]
 
@@ -418,14 +419,16 @@ def main():
     # Charger la configuration
     config_path = script_dir / args.config
     config_limits = {}
+    cleanup_config = {}
     if config_path.exists():
         registry.load_config(str(config_path))
         print(f"   ✓ Configuration chargée depuis {args.config}")
-        # Charger les limites de sortie
+        # Charger les limites de sortie + section cleanup
         try:
             with open(config_path) as f:
                 full_conf = json.load(f)
                 config_limits = full_conf.get("output", {})
+                cleanup_config = full_conf.get("cleanup", {})
         except Exception:
             pass
     
@@ -472,7 +475,7 @@ def main():
     cleanup_manager = None
     if not args.no_cleanup:
         cleanup_manager = CleanupManager()
-        cleanup_manager.add_default_filters()
+        cleanup_manager.add_default_filters(cleanup_config)
         print(f"   ✓ Filtrage activé ({len(cleanup_manager.get_filters())} filtres)")
     
     # Estimation

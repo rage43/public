@@ -54,12 +54,17 @@
             "enabled": false,
             "priority": 3,
             "description": "Concatène 2 mots du source (activable via --concat)"
+        },
+        "leet_first_year": {
+            "enabled": true,
+            "priority": 55,
+            "description": "Cap/leet 1ère lettre + année (YY/YYYY) + 1-3 spéciaux identiques (Mot2026***, @ot2026**)"
         }
     },
     "cleanup": {
         "enabled": true,
         "max_special_start": 2,
-        "max_special_end": 2,
+        "max_special_end": 3,
         "max_special_middle": 2,
         "max_numeric_start": 0,
         "max_numeric_end": 4,

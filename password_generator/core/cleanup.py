@@ -400,17 +400,31 @@ class CleanupManager:
         """Ajoute un filtre."""
         self._filters.append(filter)
     
-    def add_default_filters(self) -> None:
-        """Ajoute les filtres par défaut."""
+    def add_default_filters(self, config: dict = None) -> None:
+        """
+        Ajoute les filtres par défaut, paramétrés via la section "cleanup" de config.json.
+
+        Args:
+            config: dict optionnel correspondant à la section "cleanup" du JSON.
+                    Si None, valeurs par défaut codées en dur.
+        """
+        c = config or {}
         self._filters = [
-            NoConsecutiveSpecialFilter(),
-            NoRepeatingCharsFilter(),
-            MinLengthFilter(),
-            MaxLengthFilter(),
+            NoConsecutiveSpecialFilter(
+                max_start=c.get("max_special_start", 2),
+                max_end=c.get("max_special_end", 3),
+                max_middle=c.get("max_special_middle", 2),
+            ),
+            NoRepeatingCharsFilter(max_repeat=c.get("max_repeating_chars", 4)),
+            MinLengthFilter(min_length=c.get("min_length", 4)),
+            MaxLengthFilter(max_length=c.get("max_length", 14)),
             NoOnlySpecialFilter(),
             NoImprobablePatternFilter(),
-            MaxNumericFilter(),
-            WeakShortFilter(),
+            MaxNumericFilter(
+                max_start=c.get("max_numeric_start", 0),
+                max_end=c.get("max_numeric_end", 4),
+            ),
+            WeakShortFilter(threshold=c.get("weak_short_threshold", 6)),
             RealisticYearFilter(),
             ReadableEntropyFilter(),
         ]
