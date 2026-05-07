@@ -510,33 +510,62 @@ def main():
         warn_disk_gb=config_limits.get("warn_disk_gb")
     )
     
-    total_passwords = estimator.estimate_total_passwords() + default_passwords_cnt
-    disk_size = estimator.estimate_disk_size() # Approximation
+    raw_total = estimator.estimate_total_passwords() + default_passwords_cnt
     avg_length = estimator.average_password_length()
-    
+
     print(f"   • Mots de passe source: {format_number(len(passwords))}")
-    print(f"   • Longueur moyenne: {avg_length:.1f} caractères")
+    print(f"   • Longueur moyenne (source): {avg_length:.1f} caractères")
     print(f"   • Règles actives: {len(active_rules)}")
-    
+
     # Détail des facteurs par règle
-    print("\n   Facteurs multiplicatifs:")
+    print("\n   Facteurs multiplicatifs (worst case, sans pruning):")
     for rule in active_rules:
         print(f"     └─ {rule.name}: ×{rule.estimate_factor()}")
-    
-    disk_gb = disk_size / (1024 * 1024 * 1024)
-    disk_str = f"~{disk_gb:.2f} GB"
-    if disk_gb < 1:
-        disk_str = f"~{disk_gb * 1024:.2f} MB"
-        
-    print(f"\n   📈 Total estimé (brut): {total_passwords:,} mots de passe")
-    print(f"   🎯 Total réaliste (filtré): ~{estimator.estimate_realistic_count() + default_passwords_cnt:,} mots de passe")
-    print(f"   💾 Espace disque estimé: {disk_str}")
+
+    # Estimation par échantillonnage : on génère réellement sur 3 mots
+    # pour avoir une estimation qui tient compte des early-exit / cleanup.
+    sample_n = min(3, len(passwords))
+    print(f"\n   ⏳ Échantillonnage ({sample_n} mots source)...", end=" ", flush=True)
+    import time as _time
+    _t0 = _time.time()
+    sampled_count, sampled_avg_len = estimator.estimate_realistic_by_sampling(
+        cleanup_manager=cleanup_manager,
+        sample_size=sample_n,
+    )
+    sampled_count += default_passwords_cnt
+    print(f"✓ ({_time.time() - _t0:.1f}s)")
+
+    # Taille disque calculée sur la longueur réellement observée
+    bytes_per_pwd = sampled_avg_len + 1  # +1 pour \n
+    disk_size_real = int(sampled_count * bytes_per_pwd) if sampled_count else 0
+
+    def fmt_disk(b: int) -> str:
+        gb = b / (1024 ** 3)
+        if gb >= 1:
+            return f"~{gb:.2f} GB"
+        mb = b / (1024 ** 2)
+        if mb >= 1:
+            return f"~{mb:.2f} MB"
+        return f"~{b / 1024:.2f} KB"
+
+    print(f"\n   📈 Worst case (sans pruning): {raw_total:,} MDP")
+    print(f"   🎯 Réel attendu (échantillonné): ~{sampled_count:,} MDP")
+    print(f"   💾 Espace disque estimé: {fmt_disk(disk_size_real)}")
+    if sampled_avg_len:
+        print(f"   📏 Longueur moy. générée: {sampled_avg_len:.1f} caractères")
+
+    # Pour les feasibility checks ci-dessous, on utilise le compte échantillonné
+    total_passwords = sampled_count
+    disk_size = disk_size_real
     
     if cleanup_manager:
         print("   🧹 Filtrage actif (les MDP improbables seront retirés)")
     
-    # Vérifications de faisabilité
-    warnings = estimator.check_feasibility()
+    # Vérifications de faisabilité (basées sur l'échantillonnage, pas le worst case)
+    warnings = estimator.check_feasibility(
+        total_passwords=total_passwords,
+        disk_size=disk_size,
+    )
     if warnings:
         print("\n⚠️  Avertissements:")
         for warning in warnings:
