@@ -20,23 +20,28 @@ class PasswordGenerator:
         batch_size: int = 10000,
         remove_duplicates: bool = True,
         show_progress: bool = True,
-        cleanup_manager: Optional["CleanupManager"] = None
+        cleanup_manager: Optional["CleanupManager"] = None,
+        max_seen_cache: int = 50_000_000,
     ):
         """
         Initialise le générateur.
-        
+
         Args:
             rules: Liste des règles à appliquer
             batch_size: Taille des lots pour l'écriture
-            remove_duplicates: Si True, supprime les doublons
+            remove_duplicates: Si True, supprime les doublons (en RAM bornée)
             show_progress: Si True, affiche la progression
             cleanup_manager: Gestionnaire de nettoyage pour filtrer les MDP improbables
+            max_seen_cache: Taille max du cache de dédup. Au-delà, le cache
+                            est rotaté (laisse passer des doublons mais évite OOM).
+                            ~50M MDP ≈ 4 GB RAM.
         """
         self.rules = sorted(rules, key=lambda r: r.priority)
         self.batch_size = batch_size
         self.remove_duplicates = remove_duplicates
         self.show_progress = show_progress
         self.cleanup_manager = cleanup_manager
+        self.max_seen_cache = max_seen_cache
         self._rejected_count = 0
     
     @property
@@ -144,57 +149,81 @@ class PasswordGenerator:
     def generate_to_file(self, source_passwords: List[str], output_path: str) -> int:
         """
         Génère les mots de passe et les écrit dans un fichier.
-        
+
+        OPTIMISATIONS:
+        - Écriture binaire avec buffer 1 MiB (vs 8 KiB par défaut)
+        - Pas de `"\\n".join()` intermédiaire : on append directement avec b"\\n"
+        - Cache `seen` borné : au-delà de max_seen_cache, on le vide et on
+          continue (laisse passer quelques doublons mais évite l'OOM)
+        - `remove_duplicates=False` : zéro RAM pour la dédup (à `sort -u` ensuite)
+
         Args:
             source_passwords: Liste des mots de passe source
             output_path: Chemin du fichier de sortie
-            
+
         Returns:
             Nombre de mots de passe générés
         """
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         count = 0
         self._rejected_count = 0
-        batch: List[str] = []
-        seen: Set[str] = set()
+        seen: Set[str] = set() if self.remove_duplicates else None
+        cap = self.max_seen_cache
+        cap_hit_warned = False
         total_sources = len(source_passwords)
-        
-        with open(path, "w", encoding="utf-8") as f:
+
+        # Buffer 1 MiB pour réduire les syscalls write(2).
+        with open(path, "wb", buffering=1024 * 1024) as f:
+            write = f.write
+            batch_bytes = bytearray()
+            batch_target = self.batch_size * 16  # ~16 octets/MDP en moyenne
+
             for idx, password in enumerate(source_passwords):
                 for variation in self.generate(password):
-                    # Déduplification globale
-                    if self.remove_duplicates:
+                    # Déduplification bornée
+                    if seen is not None:
                         if variation in seen:
                             continue
+                        if len(seen) >= cap:
+                            if not cap_hit_warned and self.show_progress:
+                                sys.stdout.write(
+                                    f"\n   ⚠️  Cache dédup saturé ({cap:,}), "
+                                    f"rotation. `sort -u` recommandé après.\n"
+                                )
+                                sys.stdout.flush()
+                                cap_hit_warned = True
+                            seen.clear()
                         seen.add(variation)
-                    
-                    batch.append(variation)
+
+                    batch_bytes += variation.encode("utf-8", "replace")
+                    batch_bytes += b"\n"
                     count += 1
-                    
-                    # Écrire par lots pour économiser la mémoire
-                    if len(batch) >= self.batch_size:
-                        f.write("\n".join(batch) + "\n")
-                        batch = []
-                        
-                        # Afficher la progression
+
+                    # Flush du batch quand on atteint la taille cible
+                    if len(batch_bytes) >= batch_target:
+                        write(batch_bytes)
+                        batch_bytes = bytearray()
+
                         if self.show_progress:
                             progress = (idx + 1) / total_sources * 100
-                            rejected_info = f", {self._rejected_count:,} rejetés" if self._rejected_count > 0 else ""
+                            rejected_info = (
+                                f", {self._rejected_count:,} rejetés"
+                                if self._rejected_count > 0 else ""
+                            )
                             sys.stdout.write(
                                 f"\r   Progression: {progress:.1f}% "
-                                f"({count:,} mots de passe générés{rejected_info})"
+                                f"({count:,} MDP générés{rejected_info})"
                             )
                             sys.stdout.flush()
-            
-            # Écrire le reste
-            if batch:
-                f.write("\n".join(batch) + "\n")
-        
+
+            if batch_bytes:
+                write(batch_bytes)
+
         if self.show_progress:
             sys.stdout.write("\n")
             sys.stdout.flush()
-        
+
         return count
 

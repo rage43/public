@@ -228,6 +228,22 @@ Exemples:
              "que si le fichier source est petit et ciblé."
     )
 
+    parser.add_argument(
+        "--no-dedup",
+        action="store_true",
+        help="Désactive la dédup en RAM (mode fichier). Pour les très grosses "
+             "générations (>50M MDP). Post-traitement recommandé : "
+             "`sort -u --parallel=4 -o out.txt out.txt`."
+    )
+
+    parser.add_argument(
+        "--seen-cap",
+        type=int,
+        default=50_000_000,
+        help="Taille max du cache de dédup (défaut: 50M ≈ 4 GB RAM). "
+             "Au-delà, le cache est rotaté (faux négatifs possibles)."
+    )
+
     return parser.parse_args()
 
 
@@ -537,18 +553,24 @@ def main():
         return 0
     
     # Mode stdout (pour piping vers hashcat)
+    # IMPORTANT: PAS de dédup en RAM. Hashcat gère les doublons nativement,
+    # et `| sort -u` le fait sinon en streaming. Garder un `set()` ici
+    # explose la RAM (~10 GB pour 500M MDP).
     if args.stdout:
         generator = PasswordGenerator(
-            active_rules, 
+            active_rules,
             cleanup_manager=cleanup_manager,
-            show_progress=False  # Pas de progression en mode stdout
+            show_progress=False,
+            remove_duplicates=False,  # dédup déléguée à hashcat / sort -u
         )
-        seen = set()
+        # Écriture directe sur stdout via buffer binaire (plus rapide que print).
+        out = sys.stdout.buffer
+        write = out.write
         for password in passwords:
             for variation in generator.generate(password):
-                if variation not in seen:
-                    seen.add(variation)
-                    print(variation)
+                write(variation.encode("utf-8", "replace"))
+                write(b"\n")
+        out.flush()
         return 0
     
     # Demander confirmation
@@ -568,7 +590,14 @@ def main():
     
     # Générer les mots de passe
     print(f"\n⚙️  Génération en cours...")
-    generator = PasswordGenerator(active_rules, cleanup_manager=cleanup_manager)
+    if args.no_dedup:
+        print("   ⚠️  Dédup désactivée (--no-dedup). Pense à `sort -u` après.")
+    generator = PasswordGenerator(
+        active_rules,
+        cleanup_manager=cleanup_manager,
+        remove_duplicates=not args.no_dedup,
+        max_seen_cache=args.seen_cap,
+    )
     
     generated_count = generator.generate_to_file(passwords, str(output_path))
     
