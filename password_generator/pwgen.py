@@ -227,11 +227,34 @@ Exemples:
     parser.add_argument(
         "--assist",
         action="store_true",
-        help="Mode interactif : pose des questions sur la cible et affiche "
-             "des mots-clés contextuels à AJOUTER manuellement au fichier "
-             "source. N'écrit RIEN, aucune génération. Édite core/assist.py "
-             "pour personnaliser les questions/mots."
+        help="Affiche TOUTES les catégories (--cible-XXX) avec mots-clés en "
+             "couleur. Pas d'interaction. Édite core/assist.py pour ajouter."
     )
+
+    # Flags --cible-XXX générés dynamiquement depuis ASSIST_CATEGORIES.
+    # is_main=True -> flag CLI direct. Les sub-cibles (saisons, mois, helpdesk,
+    # svc, cloud, netsec, villes, prenoms) sont auto-incluses par les main
+    # cibles via leur champ 'includes' et n'ont pas de flag direct.
+    try:
+        from core.assist import ASSIST_CATEGORIES as _ASSIST_CATS
+        cible_group = parser.add_argument_group(
+            "Cibles d'injection (--cible-XXX)",
+            "Ajoute les mots-clés au source (dédup auto, passe par toutes "
+            "les règles ensuite). Combine plusieurs flags pour cumuler."
+        )
+        for _cat in _ASSIST_CATS:
+            if not _cat.get("is_main"):
+                continue
+            _help = _cat["label"]
+            if _cat.get("includes"):
+                _help += f"  [+ auto: {', '.join(_cat['includes'])}]"
+            cible_group.add_argument(
+                f"--cible-{_cat['cible']}",
+                action="store_true",
+                help=_help,
+            )
+    except ImportError:
+        pass  # bootstrap : les flags --cible-* seront dispo après --update
 
     parser.add_argument(
         "--concat",
@@ -485,7 +508,58 @@ def main():
         return 1
     
     print(f"   ✓ {format_number(len(passwords))} mots de passe chargés")
-    
+
+    # --cible-XXX : injecte les mots-clés des cibles activées dans le source.
+    # Pour chaque cible main activée, on ajoute aussi ses sub-cibles (includes).
+    # Dédup auto contre les mots déjà présents + entre cibles.
+    from core.assist import ASSIST_CATEGORIES, get_keywords_for_cible
+    cibles_activees = []
+    for cat in ASSIST_CATEGORIES:
+        if not cat.get("is_main"):
+            continue
+        # argparse convertit les '-' en '_' dans le dest
+        attr = "cible_" + cat["cible"].replace("-", "_")
+        if getattr(args, attr, False):
+            cibles_activees.append(cat["cible"])
+
+    if cibles_activees:
+        # Résoudre la transitive closure des includes
+        to_inject = set()
+        for cible_id in cibles_activees:
+            to_inject.add(cible_id)
+            cat = next((c for c in ASSIST_CATEGORIES if c["cible"] == cible_id), None)
+            if cat:
+                for inc in cat.get("includes", []):
+                    to_inject.add(inc)
+
+        seen_pw = set(passwords)
+        added_total = 0
+        for cible_id in cibles_activees:
+            cat = next((c for c in ASSIST_CATEGORIES if c["cible"] == cible_id), None)
+            includes_str = (f" [+ {','.join(cat['includes'])}]"
+                           if cat and cat.get("includes") else "")
+            sub_total = 0
+            # Inject main cible keywords
+            for kw in get_keywords_for_cible(cible_id):
+                if kw not in seen_pw:
+                    seen_pw.add(kw)
+                    passwords.append(kw)
+                    sub_total += 1
+            # Inject sub-cibles (includes)
+            if cat:
+                for inc in cat.get("includes", []):
+                    for kw in get_keywords_for_cible(inc):
+                        if kw not in seen_pw:
+                            seen_pw.add(kw)
+                            passwords.append(kw)
+                            sub_total += 1
+            print(f"   ✓ --cible-{cible_id}: +{sub_total} mots-clés{includes_str}")
+            added_total += sub_total
+
+        if added_total:
+            print(f"   ✓ Total injecté : {added_total} mots-clés "
+                  f"→ {format_number(len(passwords))} mots source")
+
     # Extraire les nombres pour les combinaisons
     numbers = extract_numbers(passwords)
     if numbers:
