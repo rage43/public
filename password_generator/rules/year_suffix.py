@@ -26,19 +26,52 @@ class YearSuffixRule(BaseRule):
         """Initialise avec les années dynamiques."""
         super().__init__()
         current_year = datetime.now().year
-        # Seulement les 3 dernières années (format long et court)
-        self._suffixes = [
-            str(current_year),
-            str(current_year - 1),
-            str(current_year - 2),
-            str(current_year)[-2:],
-            str(current_year - 1)[-2:],
-            str(current_year - 2)[-2:],
-        ]
-    
+        # 5 dernières années en YYYY ET YY
+        self._suffixes: List[str] = []
+        for offset in range(0, 5):
+            y = current_year - offset
+            self._suffixes.append(str(y))            # 2026..2022
+            self._suffixes.append(f"{y % 100:02d}")  # 26..22
+
+    def add_extra_years(self, years) -> List[str]:
+        """
+        Ajoute des années fournies par l'utilisateur (CLI --years).
+        Pour chaque année 4 digits, ajoute aussi sa forme YY.
+        Retourne la liste des suffixes ajoutés (pour whitelist cleanup).
+        """
+        added = []
+        for y in years:
+            y = str(y).strip()
+            if not y.isdigit() or len(y) != 4:
+                continue
+            if y not in self._suffixes:
+                self._suffixes.append(y)
+                added.append(y)
+            yy = y[-2:]
+            if yy not in self._suffixes:
+                self._suffixes.append(yy)
+                added.append(yy)
+        return added
+
+    def add_postal_codes(self, codes) -> List[str]:
+        """
+        Ajoute des codes postaux comme suffixes (5 chiffres FR typiquement).
+        Retourne la liste ajoutée (pour whitelist cleanup).
+        """
+        added = []
+        for c in codes:
+            c = str(c).strip()
+            if not c.isdigit() or len(c) < 4:
+                continue
+            if c not in self._suffixes:
+                self._suffixes.append(c)
+                added.append(c)
+        return added
+
     # Séparateurs limités pour les années
     # `;` et `:` ajoutés pour couvrir les patterns pro FR (ex: Martin;2024)
-    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-", ";", ":"]
+    # `_` ajouté pour couvrir le pattern "mot_année" (login style: john_2024)
+    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-", "_", ";", ":"]
     
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations avec années et séparateurs."""

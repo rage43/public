@@ -157,12 +157,11 @@ class HybridSuffixRule(BaseRule):
         # Dernière lettre remplacée + chiffre
         last_char = password[-1].lower()
         base = password[:-1]
+        max_room = self.max_length - len(password)
+        if max_room < 1:
+            return
 
         if last_char in self.LETTER_REPLACEMENTS:
-            # base + replacement = même longueur que password ; +num au final
-            max_room = self.max_length - len(password)
-            if max_room < 1:
-                return
             for replacement in self.LETTER_REPLACEMENTS[last_char]:
                 # Version basique
                 for num in self.SHORT_NUMBERS:
@@ -176,6 +175,17 @@ class HybridSuffixRule(BaseRule):
                     if len(num) > max_room:
                         continue
                     yield cap_base + replacement + num
-    
+
+        # Variante "last letter capitalize" (PassworD17, mariN1) : la dernière
+        # lettre passe en majuscule, +num. Distinct du leet remplacement et
+        # statistiquement observé dans les corpus pro (ergonomie clavier).
+        if password[-1].isalpha() and password[-1] == password[-1].lower():
+            last_upper = base + password[-1].upper()
+            for num in self.SHORT_NUMBERS:
+                if len(num) > max_room:
+                    continue
+                yield last_upper + num
+
     def estimate_factor(self) -> int:
-        return 12  # Beaucoup moins de variations qu'avant (plus d'années)
+        # +6 variants pour la branche last-letter-cap
+        return 18

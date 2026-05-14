@@ -28,6 +28,9 @@ GITHUB_BASE_URL = "https://raw.githubusercontent.com/rage43/public/master/passwo
 
 # Liste des fichiers requis (chemin relatif -> sera téléchargé si manquant)
 REQUIRED_FILES = [
+    "pwgen.py",  # le bootstrap lui-même : --update le remplace, le prochain run
+                 # exécute la nouvelle version (le processus actuel garde l'ancien
+                 # code en mémoire jusqu'à sa sortie - comportement Linux normal).
     "core/__init__.py",
     "core/cleanup.py",
     "core/estimator.py",
@@ -36,7 +39,6 @@ REQUIRED_FILES = [
     "rules/__init__.py",
     "rules/base_rule.py",
     "rules/case_variation.py",
-    "rules/common_patterns.py",
     "rules/default_passwords.py",
     "rules/leetspeak.py",
     "rules/numeric_suffix.py",
@@ -45,6 +47,7 @@ REQUIRED_FILES = [
     "rules/advanced_rules.py",
     "rules/word_concatenation.py",
     "rules/leet_first_year.py",
+    "rules/all_yy.py",
     "config.json",
 ]
 
@@ -242,6 +245,34 @@ Exemples:
         default=50_000_000,
         help="Taille max du cache de dédup (défaut: 50M ≈ 4 GB RAM). "
              "Au-delà, le cache est rotaté (faux négatifs possibles)."
+    )
+
+    parser.add_argument(
+        "--years",
+        type=str,
+        default="",
+        help="Années supplémentaires (CSV, ex: 2009,1990,1985). Ajoutées en "
+             "suffixe YYYY ET YY avec tous les séparateurs (ex: mot2009, "
+             "mot*09, mot-1990). Injecté dans year_suffix + leet_first_year."
+    )
+
+    parser.add_argument(
+        "--postal",
+        type=str,
+        default="",
+        help="Codes postaux supplémentaires (CSV, ex: 75001,13001). Ajoutés en "
+             "suffixe avec séparateurs (ex: mot75001, mot-75001). "
+             "Whitelistés dans les filtres pour ne pas être rejetés."
+    )
+
+    parser.add_argument(
+        "--all-yy",
+        action="store_true",
+        help="OPT-IN : active la règle ISOLÉE all_yy. Génère mot+YYYY (1980→année "
+             "courante) ET mot+YY (00→YY courant) avec 4 séparateurs (vide, *, @, .) "
+             "et 2 positions (mot@yy ET motyy@) en lower ET Capitalize. "
+             "Cible dates de naissance. Explose le keyspace (~1000 var/mot). "
+             "N'impacte AUCUNE autre règle. Dédup contre la génération principale."
     )
 
     return parser.parse_args()
@@ -458,6 +489,31 @@ def main():
     if combination_rule and numbers:
         combination_rule.set_numbers(numbers)
 
+    # Injection des années/codes postaux utilisateur (CLI --years / --postal)
+    # Parsé ici car nécessaire AVANT add_default_filters (whitelist cleanup) et
+    # AVANT l'extraction des règles actives (pour que estimate_factor soit à jour).
+    extra_user_years: List[str] = []
+    extra_user_postals: List[str] = []
+    cleanup_extra_endings: List[str] = []
+    if args.years.strip():
+        extra_user_years = [y.strip() for y in args.years.split(",") if y.strip()]
+        ys_rule = registry.get_rule("year_suffix")
+        if ys_rule:
+            added = ys_rule.add_extra_years(extra_user_years)
+            cleanup_extra_endings.extend(added)
+            print(f"   ✓ {len(added)} année(s) custom injectée(s) dans year_suffix")
+        lfy_rule = registry.get_rule("leet_first_year")
+        if lfy_rule:
+            lfy_rule.add_extra_years(extra_user_years)
+
+    if args.postal.strip():
+        extra_user_postals = [p.strip() for p in args.postal.split(",") if p.strip()]
+        ys_rule = registry.get_rule("year_suffix")
+        if ys_rule:
+            added = ys_rule.add_postal_codes(extra_user_postals)
+            cleanup_extra_endings.extend(added)
+            print(f"   ✓ {len(added)} code(s) postal injecté(s) dans year_suffix")
+
     # Activer word_concatenation via CLI si demandé + lui fournir les mots source
     concat_rule = registry.get_rule("word_concatenation")
     if concat_rule:
@@ -470,6 +526,24 @@ def main():
             print(f"   ✓ {word_count} mots fournis à word_concatenation")
             if word_count >= 30:
                 print(f"   ⚠️  {word_count} mots -> ~{word_count * (word_count-1) * 4:,} concaténations, keyspace risque d'exploser")
+
+    # Activation de la règle ISOLÉE all_yy via --all-yy (jamais via config.json
+    # pour éviter d'oublier qu'elle est ON). Cette règle n'est PAS chaînée avec
+    # les autres : elle est émise séparément après la génération principale.
+    if args.all_yy:
+        registry.enable_rule("all_yy")
+        ayy = registry.get_rule("all_yy")
+        # Optimisation: retirer les années déjà couvertes par year_suffix
+        # (qui sont chaînées avec case_variation + special_suffix → produisent
+        # les mêmes MDP que all_yy pour ces années). Doit être fait APRÈS les
+        # injections --years/--postal pour que year_suffix._suffixes soit final.
+        ys_rule = registry.get_rule("year_suffix")
+        removed = 0
+        if ys_rule:
+            removed = ayy.exclude_overlapping_suffixes(ys_rule._suffixes)
+        print("   ✓ Règle 'all_yy' ACTIVÉE via --all-yy (isolée, non chaînée)")
+        print(f"        └─ {len(ayy._suffixes)} suffixes années (après -{removed} overlap year_suffix)")
+        print(f"        └─ 7 patterns × 3 bases = ~{ayy.estimate_factor()} var/mot worst case")
 
     # Obtenir les règles actives
     active_rules = registry.get_active_rules()
@@ -489,6 +563,16 @@ def main():
         # Mais ici on veut le nombre brut généré par 1 appel
         # La règle renvoie ~84 variations uniques par design
         default_passwords_cnt = default_rule.estimate_factor()
+
+    # CAS SPÉCIAL: AllYYRule (--all-yy)
+    # Règle isolée comme default_passwords MAIS itère sur les mots source
+    # (mot+YY pour chaque mot du fichier d'entrée).
+    all_yy_rule = next((r for r in active_rules if r.name == "all_yy"), None)
+    all_yy_cnt = 0
+    if all_yy_rule:
+        active_rules = [r for r in active_rules if r.name != "all_yy"]
+        # Estimation totale = factor × nb_mots_source
+        all_yy_cnt = all_yy_rule.estimate_factor() * len(passwords)
         
     print(f"   ✓ {len(active_rules)} règles de mutation actives")
     
@@ -496,7 +580,10 @@ def main():
     cleanup_manager = None
     if not args.no_cleanup:
         cleanup_manager = CleanupManager()
-        cleanup_manager.add_default_filters(cleanup_config)
+        cleanup_manager.add_default_filters(
+            cleanup_config,
+            extra_endings=cleanup_extra_endings or None,
+        )
         print(f"   ✓ Filtrage activé ({len(cleanup_manager.get_filters())} filtres)")
     
     # Estimation
@@ -510,7 +597,7 @@ def main():
         warn_disk_gb=config_limits.get("warn_disk_gb")
     )
     
-    raw_total = estimator.estimate_total_passwords() + default_passwords_cnt
+    raw_total = estimator.estimate_total_passwords() + default_passwords_cnt + all_yy_cnt
     avg_length = estimator.average_password_length()
 
     print(f"   • Mots de passe source: {format_number(len(passwords))}")
@@ -532,7 +619,7 @@ def main():
         cleanup_manager=cleanup_manager,
         sample_size=sample_n,
     )
-    sampled_count += default_passwords_cnt
+    sampled_count += default_passwords_cnt + all_yy_cnt
     print(f"✓ ({_time.time() - _t0:.1f}s)")
 
     # Taille disque calculée sur la longueur réellement observée
@@ -573,6 +660,25 @@ def main():
     
     # Mode dry-run
     if args.dry_run:
+        # Rappel --all-yy en dry-run (le user veut un help même en dry pour ne
+        # pas oublier qu'elle est ON et son comportement).
+        if all_yy_rule:
+            print("\n" + "="*70)
+            print("⚠️  RÈGLE SPÉCIALE --all-yy ACTIVÉE")
+            print("="*70)
+            print(f"   • Suffixes années      : {len(all_yy_rule._suffixes)} valeurs")
+            print(f"     - YYYY {all_yy_rule.MIN_YEAR}..année_courante")
+            print(f"     - YY 00..YY_courant (pas de futur)")
+            print(f"     - + années importantes (édite IMPORTANT_YEARS dans all_yy.py)")
+            print(f"   • Séparateurs          : {all_yy_rule.SEPARATORS}")
+            print(f"   • Positions            : mot@yy ET motyy@")
+            print(f"   • Bases (3)            : lower + Capitalize + leet 1ère lettre")
+            print(f"                            (ex: motdepasse, Motdepasse, m0tdepasse)")
+            print(f"   • Worst case           : ~{all_yy_rule.estimate_factor()} var/mot")
+            print(f"   • Sur {len(passwords)} mot(s) source : ~{all_yy_cnt:,} MDP additionnels")
+            print(f"   • Règle ISOLÉE         : ne s'enchaîne PAS avec les autres règles")
+            print(f"   • Dédup partagée       : OK contre la génération principale (mode fichier)")
+
         print("\n" + "="*70)
         print("💡 SUGGESTIONS DE MOTS DE BASE:")
         print("="*70)
@@ -585,7 +691,23 @@ def main():
         print("   Exemple: avec \"mrt\" vous obtiendrez mrt2020, mrt*2020, mrt2020**, etc.")
         print("\n✅ Mode dry-run terminé. Aucun fichier généré.")
         return 0
-    
+
+    # Si --all-yy + --concat sont actifs ensemble, on étend les "sources" de
+    # all_yy avec les outputs de concat. Sinon all_yy n'itèrerait que sur les
+    # mots originaux et raterait Novaeblah1985, Cdrjuvisy@1990, etc.
+    # Matérialisation des concats : coût mémoire mais nécessaire car all_yy
+    # est isolé (ne reçoit pas l'output chaîné).
+    all_yy_sources = list(passwords)
+    if all_yy_rule and concat_rule and concat_rule.enabled:
+        concat_count = 0
+        for pwd in passwords:
+            for c in concat_rule.apply(pwd):
+                all_yy_sources.append(c)
+                concat_count += 1
+        if concat_count:
+            print(f"   ↳ --all-yy va itérer sur {len(passwords)} mots source "
+                  f"+ {concat_count} concats (= {len(all_yy_sources)} bases)")
+
     # Mode stdout (pour piping vers hashcat)
     # IMPORTANT: PAS de dédup en RAM. Hashcat gère les doublons nativement,
     # et `| sort -u` le fait sinon en streaming. Garder un `set()` ici
@@ -604,6 +726,27 @@ def main():
             for variation in generator.generate(password):
                 write(variation.encode("utf-8", "replace"))
                 write(b"\n")
+
+        # MDP par défaut (isolés, additifs) : émis aussi en mode --stdout
+        # pour ne pas perdre Pwd.2022, admin.2024, etc. côté pipe hashcat.
+        if default_rule:
+            for variant in default_rule.apply("dummy"):
+                if cleanup_manager and not cleanup_manager.is_valid(variant):
+                    continue
+                write(variant.encode("utf-8", "replace"))
+                write(b"\n")
+
+        # Règle ISOLÉE --all-yy : émise après la génération principale.
+        # En --stdout pas de dédup RAM (déléguée à hashcat / sort -u).
+        # Itère sur all_yy_sources (mots originaux + concats si --concat actif).
+        if all_yy_rule:
+            for password in all_yy_sources:
+                for variant in all_yy_rule.apply(password):
+                    if cleanup_manager and not cleanup_manager.is_valid(variant):
+                        continue
+                    write(variant.encode("utf-8", "replace"))
+                    write(b"\n")
+
         out.flush()
         return 0
     
@@ -634,19 +777,26 @@ def main():
     )
     
     generated_count = generator.generate_to_file(passwords, str(output_path))
-    
-    # Génération des MDP par défaut (isolés)
+
+    # Génération des MDP par défaut (isolés) : via emit_isolated_to_file pour
+    # partager la dédup avec la génération principale (corrige le trou de dédup
+    # qui existait avant).
     if default_rule:
         print(f"   ⚙️  Ajout des MDP par défaut ({default_passwords_cnt} variations)...")
-        with open(output_path, 'a', encoding='utf-8') as f:
-            # On utilise le cleanup manager pour filtrer aussi ces MDP
-            for variant in default_rule.apply("dummy"):
-                if cleanup_manager and not cleanup_manager.is_valid(variant):
-                    generator._rejected_count += 1
-                    continue
-                
-                f.write(variant + '\n')
-                generated_count += 1
+        added = generator.emit_isolated_to_file(
+            default_rule, passwords, str(output_path), per_password=False
+        )
+        generated_count += added
+
+    # Règle ISOLÉE --all-yy : émise après default_rule, dédup partagée.
+    # Itère sur all_yy_sources = mots source + concats (si --concat actif).
+    if all_yy_rule:
+        print(f"   ⚙️  Ajout des MDP --all-yy ({len(all_yy_sources)} bases × ~{all_yy_rule.estimate_factor()} var)...")
+        added = generator.emit_isolated_to_file(
+            all_yy_rule, all_yy_sources, str(output_path), per_password=True
+        )
+        print(f"   ✓ --all-yy a ajouté {added:,} MDP uniques après dédup/cleanup")
+        generated_count += added
     
     # Statistiques finales
     actual_size = output_path.stat().st_size

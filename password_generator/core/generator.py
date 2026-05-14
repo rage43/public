@@ -43,6 +43,9 @@ class PasswordGenerator:
         self.cleanup_manager = cleanup_manager
         self.max_seen_cache = max_seen_cache
         self._rejected_count = 0
+        # Seen set persistant pour permettre aux règles isolées (default_passwords,
+        # all_yy) émises hors de generate_to_file de partager la dédup.
+        self._seen: Set[str] = set() if remove_duplicates else None
     
     @property
     def rejected_count(self) -> int:
@@ -169,7 +172,10 @@ class PasswordGenerator:
 
         count = 0
         self._rejected_count = 0
-        seen: Set[str] = set() if self.remove_duplicates else None
+        # Utilise self._seen (init dans __init__) au lieu d'un local pour permettre
+        # aux règles isolées (default_passwords, all_yy) émises ensuite de partager
+        # la dédup via emit_isolated_to_file().
+        seen = self._seen
         cap = self.max_seen_cache
         cap_hit_warned = False
         total_sources = len(source_passwords)
@@ -224,6 +230,74 @@ class PasswordGenerator:
         if self.show_progress:
             sys.stdout.write("\n")
             sys.stdout.flush()
+
+        return count
+
+    def emit_isolated_to_file(
+        self,
+        rule,
+        source_passwords: List[str],
+        output_path: str,
+        per_password: bool = True,
+    ) -> int:
+        """
+        Émet les variantes d'une règle ISOLÉE (non-chaînée) en mode append,
+        en réutilisant self._seen pour dédupliquer contre la génération principale
+        ET contre les autres règles isolées émises avant.
+
+        Args:
+            rule: Règle dont on appelle .apply()
+            source_passwords: Mots source (utilisés si per_password=True)
+            output_path: Fichier cible (append)
+            per_password: Si True, rule.apply(password) pour chaque mot source.
+                          Si False, rule.apply("dummy") appelé une seule fois
+                          (cas default_passwords qui ignore son input).
+
+        Returns:
+            Nombre de MDP réellement écrits (post-dédup, post-cleanup).
+        """
+        path = Path(output_path)
+        seen = self._seen
+        cap = self.max_seen_cache
+        count = 0
+
+        # Boucle d'émission unifiée
+        def _iter_variants():
+            if per_password:
+                for pwd in source_passwords:
+                    yield from rule.apply(pwd)
+            else:
+                yield from rule.apply("dummy")
+
+        with open(path, "ab", buffering=1024 * 1024) as f:
+            write = f.write
+            batch_bytes = bytearray()
+            batch_target = self.batch_size * 16
+
+            for variant in _iter_variants():
+                # Dédup partagée
+                if seen is not None:
+                    if variant in seen:
+                        continue
+                    if len(seen) >= cap:
+                        seen.clear()
+                    seen.add(variant)
+
+                # Cleanup (rejette les MDP invalides)
+                if self.cleanup_manager and not self.cleanup_manager.is_valid(variant):
+                    self._rejected_count += 1
+                    continue
+
+                batch_bytes += variant.encode("utf-8", "replace")
+                batch_bytes += b"\n"
+                count += 1
+
+                if len(batch_bytes) >= batch_target:
+                    write(batch_bytes)
+                    batch_bytes = bytearray()
+
+            if batch_bytes:
+                write(batch_bytes)
 
         return count
 

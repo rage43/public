@@ -2,6 +2,7 @@
 LeetspeakRule - Substitutions de caractères (a→4, e→3, etc.)
 """
 
+from itertools import combinations
 from typing import Generator, Dict, List
 from .base_rule import BaseRule
 
@@ -11,26 +12,34 @@ class LeetspeakRule(BaseRule):
     Génère des variations leetspeak.
     
     Utilise les substitutions les plus courantes statistiquement:
-    - a → 4, @
+    - a → @, 4
     - e → 3
     - i → 1, !
     - o → 0
     - s → $, 5
     - t → 7
-    
-    Pour éviter une explosion combinatoire, génère uniquement:
-    1. Toutes les substitutions possibles appliquées
-    2. Première lettre substituable uniquement
+    - l → 1
+    - b → 8
+
+    Pour éviter une explosion combinatoire, génère :
+    1. Full leet (toutes les subs avec la 1ʳᵉ option de chaque)
+    2. Individual (1 sub à la fois)
+    3. Partial (sous-ensembles de 2..k-1 subs simultanées, capé à k≤4 lettres
+       substituables pour éviter le blow-up 2^k)
     """
+
+    # Cap au-delà duquel on saute les partial (2^5=32 par mot + multiplié par
+    # toutes les autres règles = trop). En-dessous : k=3 -> 3 partial, k=4 -> 10.
+    MAX_PARTIAL_K = 4
     
     name = "leetspeak"
-    description = "Substitutions leetspeak (a→4, e→3, i→1, o→0, s→$)"
+    description = "Substitutions leetspeak (a→@, e→3, i→1, o→0, s→$) full+individual+partial"
     priority = 10
     
     # Substitutions les plus courantes (statistiquement)
     # Chaque caractère a une liste de substitutions possibles
     SUBSTITUTIONS: Dict[str, List[str]] = {
-        'a': ['4', '@'],
+        'a': ['@', '4'],
         'e': ['3'],
         'i': ['1', '!'],
         'o': ['0'],
@@ -41,45 +50,60 @@ class LeetspeakRule(BaseRule):
     }
     
     def apply(self, password: str) -> Generator[str, None, None]:
-        """Génère les variations leetspeak."""
+        """Génère les variations leetspeak (full + individual + partial)."""
         lower_pwd = password.lower()
-        
-        # 1. Toutes les substitutions appliquées (version "full leet")
-        full_leet = password
-        for char, subs in self.SUBSTITUTIONS.items():
-            if char in lower_pwd:
-                # Utiliser la première substitution pour la version complète
-                full_leet = self._replace_case_insensitive(full_leet, char, subs[0])
-        
-        if full_leet != password:
+
+        # Positions substituables : (index, char_lower, sub_first_option)
+        sub_positions = [
+            (i, lower_pwd[i], self.SUBSTITUTIONS[lower_pwd[i]][0])
+            for i in range(len(password))
+            if lower_pwd[i] in self.SUBSTITUTIONS
+        ]
+
+        if not sub_positions:
+            return
+
+        emitted = {password}
+
+        # 1. Full leet : toutes les subs avec la 1ʳᵉ option de chaque
+        chars = list(password)
+        for i, _, sub in sub_positions:
+            chars[i] = sub
+        full_leet = "".join(chars)
+        if full_leet not in emitted:
+            emitted.add(full_leet)
             yield full_leet
-        
-        # 2. Substitutions individuelles (les plus courantes uniquement)
-        # Pour chaque caractère substituable, générer UNE variation
-        for i, char in enumerate(password):
-            lower_char = char.lower()
-            if lower_char in self.SUBSTITUTIONS:
-                # Générer avec la première substitution seulement
-                sub = self.SUBSTITUTIONS[lower_char][0]
-                variation = password[:i] + sub + password[i+1:]
-                if variation != password and variation != full_leet:
-                    yield variation
-    
-    def _replace_case_insensitive(self, text: str, char: str, replacement: str) -> str:
-        """Remplace un caractère de manière insensible à la casse."""
-        result = ""
-        for c in text:
-            if c.lower() == char.lower():
-                result += replacement
-            else:
-                result += c
-        return result
+
+        # 2. Individual : 1 sub à la fois
+        for i, _, sub in sub_positions:
+            variation = password[:i] + sub + password[i+1:]
+            if variation not in emitted:
+                emitted.add(variation)
+                yield variation
+
+        # 3. Partial : sous-ensembles de taille 2..k-1, capé à k <= MAX_PARTIAL_K
+        k = len(sub_positions)
+        if 2 <= k <= self.MAX_PARTIAL_K:
+            # range(2, k) : skip size 1 (déjà fait en 2) et size k (déjà fait en 1)
+            for size in range(2, k):
+                for combo in combinations(sub_positions, size):
+                    chars = list(password)
+                    for i, _, sub in combo:
+                        chars[i] = sub
+                    variation = "".join(chars)
+                    if variation not in emitted:
+                        emitted.add(variation)
+                        yield variation
     
     def estimate_factor(self) -> int:
         """
-        Estimation du facteur multiplicatif.
-        
-        En moyenne: 1 (original) + 1 (full leet) + ~3 (variations individuelles)
-        = ~5, mais arrondi à 4 car il y a souvent des doublons
+        Estimation du facteur multiplicatif (moyenne empirique).
+
+        k=2: 1 full + 2 indiv = 3
+        k=3: 1 full + 3 indiv + 3 partial = 7
+        k=4: 1 full + 4 indiv + 10 partial = 15
+        k>4: 1 full + k indiv (partial désactivé)
+
+        Moyenne pondérée sur corpus typique (mots courts à moyens) ~= 8.
         """
-        return 4
+        return 8

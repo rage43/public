@@ -81,7 +81,8 @@ python3 pwgen.py --hashcat-help
 | `hybrid_suffix` | Hybrides | password → Password@1 |
 | `combination` | Combinaisons | pass + 2025 → pass*2025 |
 | `duplication` | Duplication | test → testtest |
-| `common_patterns` | Patterns courants | pass → P@ssword1! |
+| `leet_first_year` | Cap/leet 1ère lettre + année + spéciaux | pass → P@ss2024*** |
+| `word_concatenation` | Concat 2 mots du source (--concat) | cdr + paris → cdrparis |
 | `default_passwords` | MDP par défaut | - → root, admin, 123456... |
 
 ## 🔧 Configuration

@@ -52,12 +52,24 @@ class LeetFirstYearRule(BaseRule):
         self.CURRENT_YEAR_FULL = current_year
         self.CURRENT_YEAR_SHORT = current_year % 100
 
-        # Plage : année courante et 2 années précédentes, en YYYY ET YY
+        # Plage : 5 dernières années en YYYY ET YY
         self._years: List[str] = []
-        for offset in range(0, 3):
+        for offset in range(0, 5):
             y = current_year - offset
-            self._years.append(str(y))           # 2026, 2025, 2024
-            self._years.append(f"{y % 100:02d}") # 26, 25, 24
+            self._years.append(str(y))           # 2026..2022
+            self._years.append(f"{y % 100:02d}") # 26..22
+
+    def add_extra_years(self, years) -> None:
+        """Ajoute des années utilisateur (YYYY) avec leur forme YY auto."""
+        for y in years:
+            y = str(y).strip()
+            if not y.isdigit() or len(y) != 4:
+                continue
+            if y not in self._years:
+                self._years.append(y)
+            yy = y[-2:]
+            if yy not in self._years:
+                self._years.append(yy)
 
     def _base_variations(self, password: str) -> List[str]:
         """Génère les variations de base (Capitalize + leet 1ère lettre)."""

@@ -2,8 +2,7 @@
 Cleanup - Système de nettoyage pour filtrer les mots de passe improbables
 """
 
-import re
-from typing import List, Callable, Tuple
+from typing import List, Tuple
 from abc import ABC, abstractmethod
 
 
@@ -62,43 +61,48 @@ class NoConsecutiveSpecialFilter(CleanupFilter):
         self.max_middle = max_middle
     
     def is_valid(self, password: str) -> bool:
+        # Single-pass : on track le run de spéciaux courant + on note position.
+        # `cap_middle` = self.max_middle, mais on autorise un overflow tant que
+        # le run touche le DÉBUT (max_start) ou la FIN (max_end) du MDP.
         if not password:
             return False
-        
-        # Compter les spéciaux au début
-        start_count = 0
-        for char in password:
-            if char in self.SPECIAL_CHARS:
-                start_count += 1
+
+        n = len(password)
+        specials = self.SPECIAL_CHARS
+        max_start = self.max_start
+        max_end = self.max_end
+        max_middle = self.max_middle
+
+        # Run en cours et position de départ du run (inclusive)
+        run = 0
+        run_start = 0
+        last_idx = n - 1
+
+        for i in range(n):
+            if password[i] in specials:
+                if run == 0:
+                    run_start = i
+                run += 1
             else:
-                break
-        
-        if start_count > self.max_start:
-            return False
-        
-        # Compter les spéciaux à la fin
-        end_count = 0
-        for char in reversed(password):
-            if char in self.SPECIAL_CHARS:
-                end_count += 1
-            else:
-                break
-        
-        if end_count > self.max_end:
-            return False
-        
-        # Compter les séquences consécutives au milieu
-        consecutive = 0
-        for i, char in enumerate(password):
-            if i == 0:
-                continue  # Ignorer le début
-            if char in self.SPECIAL_CHARS:
-                consecutive += 1
-                if consecutive > self.max_middle and i < len(password) - 1:
+                if run:
+                    # Run terminé ; on choisit la limite selon la position
+                    if run_start == 0:
+                        if run > max_start:
+                            return False
+                    elif run > max_middle:
+                        return False
+                    run = 0
+
+        # Run final non-terminé : touche la fin du MDP
+        if run:
+            if run_start == 0:
+                # Run = TOUT le MDP (que des spéciaux) : appliquer max_start
+                if run > max_start:
                     return False
             else:
-                consecutive = 0
-        
+                if run > max_end:
+                    return False
+
         return True
 
 
@@ -240,14 +244,17 @@ class MaxNumericFilter(CleanupFilter):
     name = "max_numeric"
     description = "Rejette les MDP commençant par un chiffre ou trop de chiffres à la fin"
     
-    def __init__(self, max_start: int = 0, max_end: int = 4):
+    def __init__(self, max_start: int = 0, max_end: int = 4, extra_endings=None):
         self.max_start = max_start
         self.max_end = max_end
-    
+        # Endings explicitement autorisés par l'utilisateur (codes postaux, années
+        # hors range, etc.) — bypass du check `end_count > max_end`.
+        self.extra_endings = tuple(extra_endings) if extra_endings else ()
+
     def is_valid(self, password: str) -> bool:
         if not password:
             return False
-            
+
         # Compter les chiffres au début
         start_count = 0
         for char in password:
@@ -255,10 +262,10 @@ class MaxNumericFilter(CleanupFilter):
                 start_count += 1
             else:
                 break
-        
+
         if start_count > self.max_start:
             return False
-            
+
         # Compter les chiffres à la fin
         end_count = 0
         for char in reversed(password):
@@ -266,10 +273,13 @@ class MaxNumericFilter(CleanupFilter):
                 end_count += 1
             else:
                 break
-        
+
         if end_count > self.max_end:
+            # Bypass si le MDP se termine par un ending whitelisté (postal, etc.)
+            if self.extra_endings and password.endswith(self.extra_endings):
+                return True
             return False
-            
+
         return True
 
 class RealisticYearFilter(CleanupFilter):
@@ -288,24 +298,32 @@ class RealisticYearFilter(CleanupFilter):
     description = "Si 4 chiffres à la fin, doit être une année (1900-2030) ou suite logique"
     
     WHITELIST = {"1234", "0000", "1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999"}
-    
-    def __init__(self, min_year: int = 1900, max_year: int = 2030):
+
+    def __init__(self, min_year: int = 1900, max_year: int = 2030, extra_endings=None):
         self.min_year = min_year
         self.max_year = max_year
-    
+        # Endings explicitement autorisés (codes postaux 5 digits, années hors
+        # range fournies par l'utilisateur). Vérifié par `endswith` -> tuple.
+        self.extra_endings = tuple(extra_endings) if extra_endings else ()
+
     def is_valid(self, password: str) -> bool:
         if len(password) < 5:  # Trop court pour avoir base + 4 chiffres
             return True
-            
+
+        # Bypass : si le MDP se termine par un ending whitelisté, on accepte
+        # (couvre codes postaux 5 digits qui finissent par 4 chiffres parasites).
+        if self.extra_endings and password.endswith(self.extra_endings):
+            return True
+
         # Extraire les 4 derniers caractères
         suffix = password[-4:]
-        
+
         # Si ce sont 4 chiffres
         if suffix.isdigit():
             # Exception pour les suites courantes
             if suffix in self.WHITELIST:
                 return True
-                
+
             # Si le caractère d'avant est aussi un chiffre, c'est une suite de 5+ chiffres
             # Ce cas est déjà géré par MaxNumericFilter(max_end=4)
             # Mais assurons-nous de ne traiter que les suffixes de "4 chiffres exacts" ou on applique à tout ?
@@ -316,7 +334,7 @@ class RealisticYearFilter(CleanupFilter):
                     return False
             except ValueError:
                 pass
-                
+
         return True
 
 
@@ -400,39 +418,54 @@ class CleanupManager:
         """Ajoute un filtre."""
         self._filters.append(filter)
     
-    def add_default_filters(self, config: dict = None) -> None:
+    def add_default_filters(self, config: dict = None, extra_endings=None) -> None:
         """
         Ajoute les filtres par défaut, paramétrés via la section "cleanup" de config.json.
 
+        ORDRE: les filtres O(1) (MinLength, WeakShort, RealisticYear, MaxNumeric)
+        passent en premier pour fail-fast, puis les linéaires (scans complets).
+        Note: MaxLengthFilter est SUPPRIMÉ — les règles de suffixe enforcent
+        déjà max_length via early-exit. Le garder coûtait ~10% du temps total.
+
         Args:
             config: dict optionnel correspondant à la section "cleanup" du JSON.
-                    Si None, valeurs par défaut codées en dur.
+            extra_endings: liste de suffixes numériques que l'utilisateur a fourni
+                via --years / --postal. Bypass MaxNumeric.max_end + RealisticYear
+                quand le MDP se termine par un de ces endings.
         """
         c = config or {}
         self._filters = [
+            # === O(1) ou quasi-O(1), fail-fast ===
+            MinLengthFilter(min_length=c.get("min_length", 4)),
+            WeakShortFilter(threshold=c.get("weak_short_threshold", 6)),
+            RealisticYearFilter(extra_endings=extra_endings),
+            MaxNumericFilter(       # 2 short scans (start + end)
+                max_start=c.get("max_numeric_start", 0),
+                max_end=c.get("max_numeric_end", 4),
+                extra_endings=extra_endings,
+            ),
+            # === Linéaires, en dernier ===
+            NoOnlySpecialFilter(),
             NoConsecutiveSpecialFilter(
                 max_start=c.get("max_special_start", 2),
                 max_end=c.get("max_special_end", 3),
                 max_middle=c.get("max_special_middle", 2),
             ),
             NoRepeatingCharsFilter(max_repeat=c.get("max_repeating_chars", 4)),
-            MinLengthFilter(min_length=c.get("min_length", 4)),
-            MaxLengthFilter(max_length=c.get("max_length", 14)),
-            NoOnlySpecialFilter(),
-            NoImprobablePatternFilter(),
-            MaxNumericFilter(
-                max_start=c.get("max_numeric_start", 0),
-                max_end=c.get("max_numeric_end", 4),
-            ),
-            WeakShortFilter(threshold=c.get("weak_short_threshold", 6)),
-            RealisticYearFilter(),
             ReadableEntropyFilter(),
+            NoImprobablePatternFilter(),
         ]
-    
+
     def is_valid(self, password: str) -> bool:
-        """Vérifie si le mot de passe passe tous les filtres."""
-        for filter in self._filters:
-            if filter.enabled and not filter.is_valid(password):
+        """
+        Vérifie si le mot de passe passe tous les filtres.
+
+        Hot path : on évite la lookup d'attribut `.enabled` sur chaque filtre
+        (les filtres par défaut sont toujours enabled). Si on a besoin de
+        désactiver un filtre custom, on le retire de la liste plutôt.
+        """
+        for f in self._filters:
+            if not f.is_valid(password):
                 return False
         return True
     

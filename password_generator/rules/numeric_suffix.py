@@ -35,7 +35,8 @@ class NumericSuffixRule(BaseRule):
 
     # Séparateurs courants
     # `;` et `:` ajoutés car utilisés dans les MDP pro FR (ex: Blc-Conseil;75)
-    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-", ";", ":"]
+    # `_` ajouté pour cohérence avec year_suffix (login style: user_123)
+    SEPARATORS: List[str] = ["", "*", "!", "@", ".", "-", "_", ";", ":"]
     
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations avec suffixes numériques et séparateurs."""

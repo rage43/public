@@ -13,10 +13,10 @@ from .numeric_suffix import NumericSuffixRule
 from .special_suffix import SpecialSuffixRule
 from .year_suffix import YearSuffixRule
 from .advanced_rules import CombinationRule, DuplicationRule, HybridSuffixRule
-from .common_patterns import CommonPatternsRule
 from .default_passwords import DefaultPasswordsRule
 from .word_concatenation import WordConcatenationRule
 from .leet_first_year import LeetFirstYearRule
+from .all_yy import AllYYRule
 
 
 class RuleRegistry:
@@ -32,10 +32,10 @@ class RuleRegistry:
         "combination": CombinationRule,
         "duplication": DuplicationRule,
         "hybrid_suffix": HybridSuffixRule,
-        "common_patterns": CommonPatternsRule,
         "default_passwords": DefaultPasswordsRule,
         "word_concatenation": WordConcatenationRule,
         "leet_first_year": LeetFirstYearRule,
+        "all_yy": AllYYRule,
     }
     
     def __init__(self):
@@ -135,8 +135,8 @@ __all__ = [
     "CombinationRule",
     "DuplicationRule",
     "HybridSuffixRule",
-    "CommonPatternsRule",
     "DefaultPasswordsRule",
     "WordConcatenationRule",
     "LeetFirstYearRule",
+    "AllYYRule",
 ]
