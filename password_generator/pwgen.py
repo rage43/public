@@ -399,11 +399,16 @@ def main():
         show_hashcat_help()
         return 0
     
-    # Mode update : supprimer les fichiers existants
+    # Mode update : supprimer les fichiers existants puis re-télécharger et SORTIR
+    # (l'utilisateur n'a pas demandé de génération, juste un refresh).
     if args.update:
         force_update()
-    
-    # Vérifier/télécharger les dépendances
+        if not check_and_download_dependencies():
+            return 1
+        print("\n✅ Mise à jour terminée. Relance pwgen.py avec --input pour générer.")
+        return 0
+
+    # Vérifier/télécharger les dépendances (cas normal : missing only)
     if not check_and_download_dependencies():
         return 1
     
