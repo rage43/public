@@ -114,6 +114,39 @@ ASSIST_QUESTIONS: List[Dict[str, Any]] = [
             "# Ajoute ici le nom du produit/marque/projet observé",
         ],
     },
+    {
+        "q": "Inclure les mots-clés affectifs FR (cibles individuelles : pet "
+             "names, mots tendres) ?",
+        "context": "Statistiques Projet Richelieu / NordPass : 'doudou', "
+                   "'loulou', 'chouchou' sont dans le top 14 des MDP FR. "
+                   "'soleil', 'cheval', 'jetaime' aussi très fréquents.",
+        "keywords": [
+            "doudou", "loulou", "chouchou", "mamour", "bisous", "amour",
+            "jetaime", "bonjour", "soleil", "cheval", "princesse",
+        ],
+    },
+    {
+        "q": "Inclure les villes FR principales (cible résidant ou travaillant "
+             "dans une grande ville) ?",
+        "context": "'marseille' est #11 dans le top FR. Les habitants utilisent "
+                   "très souvent le nom de leur ville comme base de MDP. Ajoute "
+                   "manuellement la ville exacte si tu la connais.",
+        "keywords": [
+            "marseille", "paris", "lyon", "toulouse", "bordeaux", "nice",
+            "lille", "nantes", "strasbourg", "rennes", "montpellier", "rouen",
+        ],
+    },
+    {
+        "q": "Inclure les prénoms FR très fréquents en MDP (cible individuelle "
+             "ou prénom inconnu) ?",
+        "context": "'nicolas' est dans le top 25 FR. Si tu connais le prénom "
+                   "exact de la cible, ajoute-le manuellement. Sinon, ces "
+                   "prénoms statistiquement fréquents couvrent une partie.",
+        "keywords": [
+            "nicolas", "julien", "thomas", "camille", "martin", "dupont",
+            "lucas", "hugo", "leo", "alex", "louis", "gabriel",
+        ],
+    },
     # ====================================================================
     # AJOUTE TES QUESTIONS ICI (copie le format exact ci-dessus)
     # Exemple :

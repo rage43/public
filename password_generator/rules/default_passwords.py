@@ -23,23 +23,46 @@ class DefaultPasswordsRule(BaseRule):
     priority = 1  # S'exécute en premier
     enabled = True
     
-    # TOP 10 mondial + admin essentiels + abréviations
+    # TOP MDP universels + abréviations + signatures FR
+    # Sources : NordPass 2026, Specops 2026 (6B credentials), Projet Richelieu FR
     DEFAULT_PASSWORDS: List[str] = [
-        # Numériques (les plus courants)
+        # Suites numériques (top monde, des centaines de millions d'occurrences)
         "123456",
         "12345678",
         "123456789",
         "12345",
         "1234",
-        # Mots courants
+        "1234567",
+        "1234567890",
+        # Répétitions numériques (top global, ex: 111111 = 12.2M occurrences)
+        "111111",
+        "000000",
+        "123123",
+        "654321",
+        "1111",
+        "0000",
+        "7777777",
+        # Mots dictionnaire + clavier (top monde)
         "password",
         "Password",
         "qwerty",
         "azerty",
-        # Admin essentiels
+        "qwerty123",
+        "qwertyuiop",
+        "azertyuiop",
+        "1q2w3e4r",
+        "abc123",
+        "iloveyou",
+        "password1",
+        "password123",
+        # Signature FR : "motdepasse" est top 12 dans Projet Richelieu
+        "motdepasse",
+        # Admin essentiels (cibles techniques)
         "root",
         "admin",
         "Admin",
+        "administrator",
+        "user",
         # Abréviations courantes (Pwd.2022, pwd1, etc.)
         "pwd",
         "Pwd",
