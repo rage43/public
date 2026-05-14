@@ -147,6 +147,135 @@ ASSIST_QUESTIONS: List[Dict[str, Any]] = [
             "lucas", "hugo", "leo", "alex", "louis", "gabriel",
         ],
     },
+
+    # ========================================================================
+    # PENTEST ENTREPRISE - patterns observés en mission red team / spray AD
+    # ========================================================================
+    {
+        "q": "[PENTEST] Cibler le helpdesk / MDP de réinitialisation "
+             "(comptes fraîchement créés, post-reset) ?",
+        "context": "Les MDP par défaut de helpdesk/IT sont une mine d'or : "
+                   "Welcome123, Changeme, Reset+année, Temp+année, Bienvenue. "
+                   "Souvent non changés par les utilisateurs.",
+        "keywords": [
+            "welcome", "Welcome", "changeme", "Changeme", "reset", "Reset",
+            "temp", "Temp", "bienvenue", "Bienvenue", "nouveau", "Nouveau",
+            "initial",
+        ],
+    },
+    {
+        "q": "[PENTEST] Cibler des comptes de service AD (svc_xxx, sa_xxx, "
+             "scheduled tasks) ?",
+        "context": "Comptes de service rarement changés (jamais expirent), "
+                   "souvent avec MDP basique car contraintes legacy. Bases "
+                   "courantes pour spray.",
+        "keywords": [
+            "service", "svc", "sql", "backup", "monitor", "scheduler",
+            "scheduled", "report", "exchange", "sharepoint", "iis", "apache",
+            "tomcat", "jenkins",
+        ],
+    },
+    {
+        "q": "[PENTEST] Inclure les noms de départements / divisions FR ?",
+        "context": "Beaucoup d'utilisateurs intègrent leur département dans "
+                   "leur MDP (compta2025, rh!, achats…). Aussi utilisé pour "
+                   "comptes génériques de service.",
+        "keywords": [
+            "compta", "comptable", "rh", "drh", "finance", "achats", "achat",
+            "juridique", "marketing", "commercial", "vente", "production",
+            "prod", "qualite", "hse", "logistique", "direction", "siege",
+            "secretariat", "informatique", "it",
+        ],
+    },
+    {
+        "q": "[PENTEST] Inclure les mots-clés infra Microsoft (Windows/AD/"
+             "Exchange/O365/SharePoint) ?",
+        "context": "Stack Microsoft = 80% des SI entreprise FR. Les comptes "
+                   "techniques utilisent souvent le nom du produit.",
+        "keywords": [
+            "windows", "Windows", "microsoft", "office", "office365", "o365",
+            "exchange", "Exchange", "sharepoint", "outlook", "teams",
+            "domain", "krbtgt", "kerberos", "ldap", "dc",
+        ],
+    },
+    {
+        "q": "[PENTEST] Inclure les mots-clés virtualisation / Cloud "
+             "(VMware, Citrix, AWS, Azure, GCP) ?",
+        "context": "Comptes admin de l'infra virtu / cloud. MDP souvent "
+                   "partagés entre équipes IT, recyclés.",
+        "keywords": [
+            "vmware", "vcenter", "esxi", "vsphere", "citrix", "horizon",
+            "hyperv", "aws", "azure", "gcp", "openstack", "kubernetes", "k8s",
+            "docker", "nutanix",
+        ],
+    },
+    {
+        "q": "[PENTEST] Inclure les vendeurs d'équipements réseau / sécurité "
+             "(Cisco, Fortinet, Palo, Sophos) ?",
+        "context": "Comptes admin sur switches, firewalls, NAC. Identifiants "
+                   "souvent par défaut ou avec marque dans le MDP.",
+        "keywords": [
+            "cisco", "Cisco", "fortinet", "fortigate", "fortiweb", "juniper",
+            "palo", "paloalto", "sophos", "watchguard", "stormshield",
+            "checkpoint", "fortimanager", "panorama",
+        ],
+    },
+    {
+        "q": "[PENTEST] La cible est-elle dans la banque / assurance / "
+             "finance ?",
+        "context": "Vocabulaire bancaire FR. Comptes back-office, conseillers, "
+                   "gestionnaires utilisent souvent les termes métier.",
+        "keywords": [
+            "banque", "credit", "agios", "compte", "epargne", "credit",
+            "assurance", "mutuelle", "courtier", "conseiller", "gestionnaire",
+            "client", "iban", "bic", "ca", "bnp", "lcl", "sg",
+        ],
+    },
+    {
+        "q": "[PENTEST] La cible est-elle dans l'industrie / production "
+             "(usine, manufacture, ICS/SCADA) ?",
+        "context": "Atelier, OT, qualité, sécurité industrielle. MDP souvent "
+                   "fixés par contraintes équipement (8 char max, pas de "
+                   "spéciaux). Recyclés entre stations.",
+        "keywords": [
+            "usine", "atelier", "production", "qualite", "securite", "hse",
+            "sst", "iso9001", "supervision", "scada", "ihm", "automate",
+            "operateur", "chef",
+        ],
+    },
+    {
+        "q": "[PENTEST] La cible est-elle dans le retail / grande distribution "
+             "(magasin, caisse, stock) ?",
+        "context": "Comptes caissier, gestionnaire de rayon, dépôt. MDP "
+                   "souvent identiques entre magasins de la même enseigne.",
+        "keywords": [
+            "magasin", "caisse", "rayon", "stock", "depot", "vendeur",
+            "vendeuse", "manager", "directeur", "siege", "franchise",
+        ],
+    },
+    {
+        "q": "[PENTEST] Inclure les saisons FR (politique de rotation MDP "
+             "trimestrielle / annuelle) ?",
+        "context": "Politiques RH 'changement tous les 90 jours' → MDP basés "
+                   "sur la saison courante + année. Top pattern enterprise FR.",
+        "keywords": [
+            "ete", "Ete", "hiver", "Hiver", "printemps", "Printemps",
+            "automne", "Automne", "summer", "Summer", "winter", "Winter",
+            "spring", "Spring", "autumn", "fall",
+        ],
+    },
+    {
+        "q": "[PENTEST] Inclure les mois FR (politique mensuelle ou MDP "
+             "'mois année') ?",
+        "context": "Pattern 'Janvier2025!' / 'Mars2024@' fréquent quand la "
+                   "politique RH force changement mensuel.",
+        "keywords": [
+            "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet",
+            "aout", "septembre", "octobre", "novembre", "decembre",
+            "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin", "Juillet",
+            "Aout", "Septembre", "Octobre", "Novembre", "Decembre",
+        ],
+    },
     # ====================================================================
     # AJOUTE TES QUESTIONS ICI (copie le format exact ci-dessus)
     # Exemple :
