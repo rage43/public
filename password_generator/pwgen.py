@@ -509,56 +509,72 @@ def main():
     
     print(f"   ✓ {format_number(len(passwords))} mots de passe chargés")
 
-    # --cible-XXX : injecte les mots-clés des cibles activées dans le source.
-    # Pour chaque cible main activée, on ajoute aussi ses sub-cibles (includes).
-    # Dédup auto contre les mots déjà présents + entre cibles.
+    # --cible-XXX : injecte les mots-clés des cibles activées + cross-concat
+    # source × cible. Pour scalabilité, on SÉPARE les mots originaux (qui
+    # passent par toutes les règles) des mots cible/cross-concat (qui passent
+    # par un pipeline LIGHT - case + year + special + numeric + leet_first_year,
+    # sans leetspeak partial ni duplication qui exploseraient le keyspace).
     from core.assist import ASSIST_CATEGORIES, get_keywords_for_cible
     cibles_activees = []
     for cat in ASSIST_CATEGORIES:
         if not cat.get("is_main"):
             continue
-        # argparse convertit les '-' en '_' dans le dest
         attr = "cible_" + cat["cible"].replace("-", "_")
         if getattr(args, attr, False):
             cibles_activees.append(cat["cible"])
 
-    if cibles_activees:
-        # Résoudre la transitive closure des includes
-        to_inject = set()
-        for cible_id in cibles_activees:
-            to_inject.add(cible_id)
-            cat = next((c for c in ASSIST_CATEGORIES if c["cible"] == cible_id), None)
-            if cat:
-                for inc in cat.get("includes", []):
-                    to_inject.add(inc)
+    # cible_extra : reçu un pipeline LIGHT séparé du main `passwords`.
+    cible_extra: List[str] = []
 
+    if cibles_activees:
+        original_source = list(passwords)
         seen_pw = set(passwords)
         added_total = 0
+
         for cible_id in cibles_activees:
             cat = next((c for c in ASSIST_CATEGORIES if c["cible"] == cible_id), None)
             includes_str = (f" [+ {','.join(cat['includes'])}]"
                            if cat and cat.get("includes") else "")
             sub_total = 0
-            # Inject main cible keywords
             for kw in get_keywords_for_cible(cible_id):
                 if kw not in seen_pw:
                     seen_pw.add(kw)
-                    passwords.append(kw)
+                    cible_extra.append(kw)
                     sub_total += 1
-            # Inject sub-cibles (includes)
             if cat:
                 for inc in cat.get("includes", []):
                     for kw in get_keywords_for_cible(inc):
                         if kw not in seen_pw:
                             seen_pw.add(kw)
-                            passwords.append(kw)
+                            cible_extra.append(kw)
                             sub_total += 1
             print(f"   ✓ --cible-{cible_id}: +{sub_total} mots-clés{includes_str}")
             added_total += sub_total
 
-        if added_total:
-            print(f"   ✓ Total injecté : {added_total} mots-clés "
-                  f"→ {format_number(len(passwords))} mots source")
+        # Cross-concat : original_source × cible_keywords (4 sep, 2 directions).
+        CROSS_SEPS = ["", "_", "-", "."]
+        cross_added = 0
+        # Snapshot des cible_words avant ajout des cross (pour cible × source seulement)
+        cible_words_snapshot = list(cible_extra)
+        for src in original_source:
+            src_lower = src.lower().strip()
+            if not src_lower:
+                continue
+            for kw in cible_words_snapshot:
+                kw_lower = kw.lower().strip()
+                if not kw_lower or kw_lower == src_lower:
+                    continue
+                for sep in CROSS_SEPS:
+                    for v in (src_lower + sep + kw_lower, kw_lower + sep + src_lower):
+                        if v not in seen_pw:
+                            seen_pw.add(v)
+                            cible_extra.append(v)
+                            cross_added += 1
+
+        if added_total or cross_added:
+            print(f"   ✓ cible_extra : {added_total} mots-clés + {cross_added} "
+                  f"cross-concat = {len(cible_extra)} mots (pipeline LIGHT)")
+            print(f"     └─ main pipeline : {len(passwords)} mot(s) source original")
 
     # Extraire les nombres pour les combinaisons
     numbers = extract_numbers(passwords)
@@ -820,13 +836,31 @@ def main():
             show_progress=False,
             remove_duplicates=False,  # dédup déléguée à hashcat / sort -u
         )
+        # Pipeline LIGHT pour cible_extra (case + year + special + numeric + leet_first_year)
+        LIGHT_RULE_NAMES = {"case_variation", "numeric_suffix", "special_suffix",
+                            "year_suffix", "leet_first_year"}
+        light_rules = [r for r in active_rules if r.name in LIGHT_RULE_NAMES]
+        light_gen = PasswordGenerator(
+            light_rules,
+            cleanup_manager=cleanup_manager,
+            show_progress=False,
+            remove_duplicates=False,
+        ) if cible_extra else None
+
         # Écriture directe sur stdout via buffer binaire (plus rapide que print).
         out = sys.stdout.buffer
         write = out.write
+        # 1. Main : mots originaux à travers TOUTES les règles
         for password in passwords:
             for variation in generator.generate(password):
                 write(variation.encode("utf-8", "replace"))
                 write(b"\n")
+        # 2. Cible_extra : pipeline LIGHT (skip leetspeak partial + duplication)
+        if light_gen:
+            for password in cible_extra:
+                for variation in light_gen.generate(password):
+                    write(variation.encode("utf-8", "replace"))
+                    write(b"\n")
 
         # MDP par défaut (isolés, additifs) : émis aussi en mode --stdout
         # pour ne pas perdre Pwd.2022, admin.2024, etc. côté pipe hashcat.
@@ -878,6 +912,27 @@ def main():
     )
     
     generated_count = generator.generate_to_file(passwords, str(output_path))
+
+    # Cible_extra : pipeline LIGHT (case + year + special + numeric + leet_first_year)
+    # Évite le rule chain complet sur 100+ mots cible qui exploserait. Partage
+    # le _seen pour dédup contre la génération principale.
+    if cible_extra:
+        LIGHT_RULE_NAMES = {"case_variation", "numeric_suffix", "special_suffix",
+                            "year_suffix", "leet_first_year"}
+        light_rules = [r for r in active_rules if r.name in LIGHT_RULE_NAMES]
+        light_gen = PasswordGenerator(
+            light_rules,
+            cleanup_manager=cleanup_manager,
+            remove_duplicates=not args.no_dedup,
+            max_seen_cache=args.seen_cap,
+        )
+        light_gen._seen = generator._seen  # dédup partagée avec main
+        print(f"   ⚙️  Cible_extra : {len(cible_extra)} mots via pipeline LIGHT...")
+        cible_count = light_gen.generate_to_file(
+            cible_extra, str(output_path), append=True
+        )
+        print(f"   ✓ Cible_extra : +{cible_count:,} MDP")
+        generated_count += cible_count
 
     # Génération des MDP par défaut (isolés) : via emit_isolated_to_file pour
     # partager la dédup avec la génération principale (corrige le trou de dédup

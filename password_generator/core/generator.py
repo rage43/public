@@ -149,7 +149,9 @@ class PasswordGenerator:
                 
                 yield variation
     
-    def generate_to_file(self, source_passwords: List[str], output_path: str) -> int:
+    def generate_to_file(
+        self, source_passwords: List[str], output_path: str, append: bool = False
+    ) -> int:
         """
         Génère les mots de passe et les écrit dans un fichier.
 
@@ -181,7 +183,9 @@ class PasswordGenerator:
         total_sources = len(source_passwords)
 
         # Buffer 1 MiB pour réduire les syscalls write(2).
-        with open(path, "wb", buffering=1024 * 1024) as f:
+        # mode='ab' permet d'enchaîner plusieurs appels (cible_extra après main).
+        mode = "ab" if append else "wb"
+        with open(path, mode, buffering=1024 * 1024) as f:
             write = f.write
             batch_bytes = bytearray()
             batch_target = self.batch_size * 16  # ~16 octets/MDP en moyenne
