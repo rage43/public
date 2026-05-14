@@ -32,6 +32,7 @@ REQUIRED_FILES = [
                  # exécute la nouvelle version (le processus actuel garde l'ancien
                  # code en mémoire jusqu'à sa sortie - comportement Linux normal).
     "core/__init__.py",
+    "core/assist.py",
     "core/cleanup.py",
     "core/estimator.py",
     "core/generator.py",
@@ -224,6 +225,15 @@ Exemples:
     )
 
     parser.add_argument(
+        "--assist",
+        action="store_true",
+        help="Mode interactif : pose des questions sur la cible et affiche "
+             "des mots-clés contextuels à AJOUTER manuellement au fichier "
+             "source. N'écrit RIEN, aucune génération. Édite core/assist.py "
+             "pour personnaliser les questions/mots."
+    )
+
+    parser.add_argument(
         "--concat",
         action="store_true",
         help="Active la règle word_concatenation (combine 2 mots du source, "
@@ -398,7 +408,19 @@ def main():
     if args.hashcat_help:
         show_hashcat_help()
         return 0
-    
+
+    # Mode assist : questionnaire interactif pour suggérer des mots-clés.
+    # Branche terminale : n'écrit rien, ne génère rien.
+    if args.assist:
+        # Avant de pouvoir importer core.assist, on doit s'assurer que les
+        # dépendances sont là (premier lancement après bootstrap).
+        if not check_and_download_dependencies():
+            return 1
+        script_dir = get_script_dir()
+        sys.path.insert(0, str(script_dir))
+        from core.assist import run_assist
+        return run_assist()
+
     # Mode update : supprimer les fichiers existants puis re-télécharger et SORTIR
     # (l'utilisateur n'a pas demandé de génération, juste un refresh).
     if args.update:
