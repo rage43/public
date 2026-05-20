@@ -181,6 +181,7 @@ class PasswordGenerator:
         cap = self.max_seen_cache
         cap_hit_warned = False
         total_sources = len(source_passwords)
+        last_progress_tenths = -1
 
         # Buffer 1 MiB pour réduire les syscalls write(2).
         # mode='ab' permet d'enchaîner plusieurs appels (cible_extra après main).
@@ -217,13 +218,16 @@ class PasswordGenerator:
                         batch_bytes = bytearray()
 
                         if self.show_progress:
-                            progress = (idx + 1) / total_sources * 100
+                            progress_tenths = ((idx + 1) * 1000) // total_sources
+                            if progress_tenths == last_progress_tenths:
+                                continue
+                            last_progress_tenths = progress_tenths
                             rejected_info = (
                                 f", {self._rejected_count:,} rejetés"
                                 if self._rejected_count > 0 else ""
                             )
                             sys.stdout.write(
-                                f"\r   Progression: {progress:.1f}% "
+                                f"\r   Progression: {progress_tenths / 10:.1f}% "
                                 f"({count:,} MDP générés{rejected_info})"
                             )
                             sys.stdout.flush()
@@ -264,44 +268,58 @@ class PasswordGenerator:
         seen = self._seen
         cap = self.max_seen_cache
         count = 0
-
-        # Boucle d'émission unifiée
-        def _iter_variants():
-            if per_password:
-                for pwd in source_passwords:
-                    yield from rule.apply(pwd)
-            else:
-                yield from rule.apply("dummy")
+        total_sources = len(source_passwords) if per_password else 1
+        last_progress_tenths = -1
 
         with open(path, "ab", buffering=1024 * 1024) as f:
             write = f.write
             batch_bytes = bytearray()
             batch_target = self.batch_size * 16
 
-            for variant in _iter_variants():
-                # Dédup partagée
-                if seen is not None:
-                    if variant in seen:
+            sources = source_passwords if per_password else ["dummy"]
+            for idx, source in enumerate(sources):
+                for variant in rule.apply(source):
+                    # Dédup partagée
+                    if seen is not None:
+                        if variant in seen:
+                            continue
+                        if len(seen) >= cap:
+                            seen.clear()
+                        seen.add(variant)
+
+                    # Cleanup (rejette les MDP invalides)
+                    if self.cleanup_manager and not self.cleanup_manager.is_valid(variant):
+                        self._rejected_count += 1
                         continue
-                    if len(seen) >= cap:
-                        seen.clear()
-                    seen.add(variant)
 
-                # Cleanup (rejette les MDP invalides)
-                if self.cleanup_manager and not self.cleanup_manager.is_valid(variant):
-                    self._rejected_count += 1
-                    continue
+                    batch_bytes += variant.encode("utf-8", "replace")
+                    batch_bytes += b"\n"
+                    count += 1
 
-                batch_bytes += variant.encode("utf-8", "replace")
-                batch_bytes += b"\n"
-                count += 1
+                    if len(batch_bytes) >= batch_target:
+                        write(batch_bytes)
+                        batch_bytes = bytearray()
 
-                if len(batch_bytes) >= batch_target:
-                    write(batch_bytes)
-                    batch_bytes = bytearray()
+                        if self.show_progress:
+                            progress_tenths = ((idx + 1) * 1000) // total_sources
+                            if progress_tenths == last_progress_tenths:
+                                continue
+                            last_progress_tenths = progress_tenths
+                            rejected_info = (
+                                f", {self._rejected_count:,} rejetés"
+                                if self._rejected_count > 0 else ""
+                            )
+                            sys.stdout.write(
+                                f"\r   Progression {rule.name}: {progress_tenths / 10:.1f}% "
+                                f"({count:,} MDP ajoutés{rejected_info})"
+                            )
+                            sys.stdout.flush()
 
             if batch_bytes:
                 write(batch_bytes)
 
-        return count
+        if self.show_progress:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
 
+        return count
