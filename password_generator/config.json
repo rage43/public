@@ -58,7 +58,7 @@
         "all_yy": {
             "enabled": false,
             "priority": 99,
-            "description": "OPT-IN --all-yy : YY 01-99 (dates de naissance), règle isolée, ~1386 var/mot"
+            "description": "OPT-IN --all-yy : dates de naissance, séparateurs/spéciaux, règle isolée, ~6000 var/mot"
         }
     },
     "cleanup": {

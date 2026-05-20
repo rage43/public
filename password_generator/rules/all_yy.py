@@ -22,17 +22,18 @@ from .base_rule import BaseRule
 
 class AllYYRule(BaseRule):
     """
-    Génère mot + année avec 4 séparateurs et 2 positions de séparateur.
+    Génère mot + année avec les séparateurs spéciaux courants.
 
     Patterns par mot source (3 bases : lower + Capitalize + leet 1ère lettre) :
     - motYYYY                       (sep="" avant)
-    - mot*YYYY, mot@YYYY, mot.YYYY  (sep avant)
-    - motYYYY*, motYYYY@, motYYYY.  (sep après)
+    - mot*YYYY, mot@YYYY, mot$YYYY  (sep avant)
+    - motYYYY*, motYYYY@, motYYYY$  (sep après)
+    - mot*YYYY@, mot!YYYY$, mot.YYYY! (paires courantes encadrantes)
     - (idem avec YY)
     - (idem avec base Capitalize : Mot...)
     - (idem avec base leet 1ère lettre : @cppav, 3xemple, !ndex, 0range, $ample)
 
-    Année courante 2026 → 74 suffixes × 7 patterns × 3 bases = ~1554 var/mot
+    Année courante 2026 → 74 suffixes × 29 patterns × 3 bases = ~6438 var/mot
     worst case (avant dédup interne + cleanup). Bases réduites à 2 ou 1 si
     le mot n'a pas de 1ère lettre leetable / est déjà capitalize.
     """
@@ -42,8 +43,25 @@ class AllYYRule(BaseRule):
     priority = 99  # Pas chaînée, mais ordre logique : tout à la fin
     enabled = False  # OPT-IN STRICT via flag CLI uniquement
 
-    # 4 séparateurs uniquement (subset minimaliste)
-    SEPARATORS: List[str] = ["", "*", "@", "."]
+    # Aligné sur year_suffix pour couvrir aussi les années avec ponctuation finale.
+    SEPARATORS: List[str] = ["", "*", "!", "@", "#", "$", ".", "-", "_"]
+
+    # Paires encadrantes choisies à la main pour couvrir les combinaisons
+    # courantes sans faire un produit cartésien complet des séparateurs.
+    WRAPPED_SEPARATOR_PAIRS: List[tuple[str, str]] = [
+        ("*", "@"),
+        ("*", "!"),
+        ("*", "$"),
+        ("!", "@"),
+        ("!", "$"),
+        ("@", "!"),
+        ("@", "$"),
+        (".", "!"),
+        (".", "@"),
+        ("-", "!"),
+        ("_", "!"),
+        ("_", "@"),
+    ]
 
     # Substitutions leet appliquées UNIQUEMENT sur la 1ʳᵉ lettre (alignées avec
     # LeetFirstYearRule.LEET_FIRST). Permet @cppav+1985, 3xemple+2010, etc.
@@ -173,10 +191,24 @@ class AllYYRule(BaseRule):
                         seen.add(variant)
                         yield variant
 
+                # Pattern 3 : base + sep_avant + année + sep_après
+                # Liste explicite pour éviter d'exploser le keyspace avec
+                # toutes les combinaisons de ponctuation possibles.
+                for sep_before, sep_after in self.WRAPPED_SEPARATOR_PAIRS:
+                    total_len = len(sep_before) + slen + len(sep_after)
+                    if total_len > max_room:
+                        continue
+                    variant = base + sep_before + suffix + sep_after
+                    if variant not in seen:
+                        seen.add(variant)
+                        yield variant
+
     def estimate_factor(self) -> int:
         """
-        Worst case : len(suffixes) × (2 × len(sep) - 1) × 3 bases.
+        Worst case :
+        len(suffixes) × ((2 × len(sep) - 1) + wrapped_pairs) × 3 bases.
         3 bases = lower + Capitalize + leet 1ère lettre (si applicable).
-        2026 : 74 × 7 × 3 = 1554 (vs 1036 sans leet).
+        2026 : 74 × 29 × 3 = 6438 (vs 4292 sans leet).
         """
-        return len(self._suffixes) * (2 * len(self.SEPARATORS) - 1) * 3
+        patterns = (2 * len(self.SEPARATORS) - 1) + len(self.WRAPPED_SEPARATOR_PAIRS)
+        return len(self._suffixes) * patterns * 3

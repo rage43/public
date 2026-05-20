@@ -302,9 +302,9 @@ Exemples:
         "--all-yy",
         action="store_true",
         help="OPT-IN : active la règle ISOLÉE all_yy. Génère mot+YYYY (1980→année "
-             "courante) ET mot+YY (00→YY courant) avec 4 séparateurs (vide, *, @, .) "
+             "courante) ET mot+YY (00→YY courant) avec séparateurs/spéciaux "
              "et 2 positions (mot@yy ET motyy@) en lower ET Capitalize. "
-             "Cible dates de naissance. Explose le keyspace (~1000 var/mot). "
+             "Cible dates de naissance. Explose le keyspace (~6000 var/mot). "
              "N'impacte AUCUNE autre règle. Dédup contre la génération principale."
     )
 
