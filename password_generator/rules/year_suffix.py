@@ -53,19 +53,37 @@ class YearSuffixRule(BaseRule):
                 added.append(yy)
         return added
 
-    def add_postal_codes(self, codes) -> List[str]:
+    def add_postal_codes(self, codes, include_department: bool = True) -> List[str]:
         """
-        Ajoute des codes postaux comme suffixes (5 chiffres FR typiquement).
+        Ajoute des codes postaux comme suffixes (5 chiffres FR typiquement) ET,
+        si include_department, leur numéro de DÉPARTEMENT (très utilisé dans les
+        MDP FR : appartenance régionale, clubs, fierté locale...).
+
+        Décomposition département (code à 5 chiffres) :
+        - Métropole : 2 premiers chiffres (45770 -> 45, 75001 -> 75)
+        - Outre-mer (97x/98x) : 3 premiers chiffres (97400 -> 974, 98800 -> 988)
+
+        Accepte aussi un département seul en entrée (2-3 chiffres, ex: --postal 45).
+
         Retourne la liste ajoutée (pour whitelist cleanup).
         """
         added = []
+
+        def _add(suffix: str) -> None:
+            if suffix not in self._suffixes:
+                self._suffixes.append(suffix)
+                added.append(suffix)
+
         for c in codes:
             c = str(c).strip()
-            if not c.isdigit() or len(c) < 4:
+            if not c.isdigit() or not (2 <= len(c) <= 5):
                 continue
-            if c not in self._suffixes:
-                self._suffixes.append(c)
-                added.append(c)
+            # Code complet (ou département seul si 2-3 chiffres fournis)
+            _add(c)
+            # Décomposition département pour un code postal complet (5 chiffres)
+            if include_department and len(c) == 5:
+                dept = c[:3] if c[:2] in ("97", "98") else c[:2]
+                _add(dept)
         return added
 
     # Séparateurs limités pour les années

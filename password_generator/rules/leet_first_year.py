@@ -71,6 +71,25 @@ class LeetFirstYearRule(BaseRule):
             if yy not in self._years:
                 self._years.append(yy)
 
+    def add_postal_codes(self, codes, include_department: bool = True) -> None:
+        """
+        Injecte des codes postaux (et leur n° de département) dans les suffixes,
+        pour produire les motifs cap/leet 1ère lettre + code + spéciaux
+        (ex: Mot45770*, @ot45**). Aligné sur YearSuffixRule.add_postal_codes.
+        """
+        def _add(suffix: str) -> None:
+            if suffix not in self._years:
+                self._years.append(suffix)
+
+        for c in codes:
+            c = str(c).strip()
+            if not c.isdigit() or not (2 <= len(c) <= 5):
+                continue
+            _add(c)
+            if include_department and len(c) == 5:
+                dept = c[:3] if c[:2] in ("97", "98") else c[:2]
+                _add(dept)
+
     def _base_variations(self, password: str) -> List[str]:
         """Génère les variations de base (Capitalize + leet 1ère lettre)."""
         variations = []

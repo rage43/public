@@ -66,6 +66,7 @@ python3 pwgen.py --hashcat-help
 | `-y, --yes` | Confirme automatiquement |
 | `--list-rules` | Liste les règles disponibles |
 | `--no-cleanup` | Désactive le filtrage des MDP improbables |
+| `--postal CODES` | Codes postaux (CSV) en suffixe + n° de département auto (45770 → 45770, 45) ; accepte un département seul (45) |
 | `--hashcat-help` | Affiche l'aide-mémoire Hashcat |
 | `--update` | Force le re-téléchargement des fichiers |
 

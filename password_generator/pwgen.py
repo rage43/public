@@ -295,8 +295,10 @@ Exemples:
         type=str,
         default="",
         help="Codes postaux supplémentaires (CSV, ex: 75001,13001). Ajoutés en "
-             "suffixe avec séparateurs (ex: mot75001, mot-75001). "
-             "Whitelistés dans les filtres pour ne pas être rejetés."
+             "suffixe avec séparateurs (ex: mot75001, mot-75001) ET décomposés "
+             "en n° de département (75001 -> 75, 97400 -> 974), très utilisé "
+             "en FR. Accepte aussi un département seul (ex: 45). Injectés dans "
+             "year_suffix + leet_first_year. Whitelistés pour ne pas être rejetés."
     )
 
     parser.add_argument(
@@ -641,7 +643,14 @@ def main():
         if ys_rule:
             added = ys_rule.add_postal_codes(extra_user_postals)
             cleanup_extra_endings.extend(added)
-            print(f"   ✓ {len(added)} code(s) postal injecté(s) dans year_suffix")
+            depts = [s for s in added if s not in extra_user_postals]
+            dept_info = f" (dont {len(depts)} n° de département : {', '.join(depts)})" if depts else ""
+            print(f"   ✓ {len(added)} suffixe(s) postal injecté(s) dans year_suffix{dept_info}")
+        # Mêmes codes + départements injectés dans leet_first_year pour les
+        # motifs cap/leet 1ère lettre + code + spéciaux (Mot45770*, @ot45**).
+        lfy_rule = registry.get_rule("leet_first_year")
+        if lfy_rule:
+            lfy_rule.add_postal_codes(extra_user_postals)
 
     # Activer word_concatenation via CLI si demandé + lui fournir les mots source
     concat_rule = registry.get_rule("word_concatenation")
