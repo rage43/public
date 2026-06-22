@@ -49,6 +49,7 @@ REQUIRED_FILES = [
     "rules/word_concatenation.py",
     "rules/leet_first_year.py",
     "rules/all_yy.py",
+    "rules/case_combo.py",
     "config.json",
 ]
 
@@ -296,6 +297,17 @@ Exemples:
         help="Codes postaux supplémentaires (CSV, ex: 75001,13001). Ajoutés en "
              "suffixe avec séparateurs (ex: mot75001, mot-75001). "
              "Whitelistés dans les filtres pour ne pas être rejetés."
+    )
+
+    parser.add_argument(
+        "--case-combo",
+        action="store_true",
+        help="OPT-IN : active la règle CHAÎNÉE case_combo. Capitalise 1 à 2 "
+             "lettres internes arbitraires des formes minuscules/leet "
+             "(ex: w0nd3r -> W0nD3r), couvrant les majuscules 'début de "
+             "syllabe' que case_variation ne produit pas. Chaînée après "
+             "leetspeak/case_variation. Multiplie le keyspace (~20-28 var/mot "
+             "sur le sous-arbre minuscule), à réserver aux sources ciblées."
     )
 
     parser.add_argument(
@@ -643,6 +655,14 @@ def main():
             print(f"   ✓ {word_count} mots fournis à word_concatenation")
             if word_count >= 30:
                 print(f"   ⚠️  {word_count} mots -> ~{word_count * (word_count-1) * 4:,} concaténations, keyspace risque d'exploser")
+
+    # Activation de la règle CHAÎNÉE case_combo via --case-combo (opt-in strict,
+    # jamais via config.json pour ne pas oublier qu'elle est ON et explose le
+    # keyspace). Chaînée : elle s'insère dans le pipeline récursif via sa priorité.
+    if args.case_combo:
+        registry.enable_rule("case_combo")
+        print("   ✓ Règle 'case_combo' ACTIVÉE via --case-combo (chaînée, "
+              "maj. combinatoire bornée 1-2 lettres)")
 
     # Activation de la règle ISOLÉE all_yy via --all-yy (jamais via config.json
     # pour éviter d'oublier qu'elle est ON). Cette règle n'est PAS chaînée avec

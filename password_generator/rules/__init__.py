@@ -17,6 +17,7 @@ from .default_passwords import DefaultPasswordsRule
 from .word_concatenation import WordConcatenationRule
 from .leet_first_year import LeetFirstYearRule
 from .all_yy import AllYYRule
+from .case_combo import CaseComboRule
 
 
 class RuleRegistry:
@@ -36,6 +37,7 @@ class RuleRegistry:
         "word_concatenation": WordConcatenationRule,
         "leet_first_year": LeetFirstYearRule,
         "all_yy": AllYYRule,
+        "case_combo": CaseComboRule,
     }
     
     def __init__(self):
@@ -139,4 +141,5 @@ __all__ = [
     "WordConcatenationRule",
     "LeetFirstYearRule",
     "AllYYRule",
+    "CaseComboRule",
 ]
