@@ -135,6 +135,8 @@ password_generator/
 
 - **Mémoire** : O(1) grâce aux générateurs lazy
 - **Déduplification** : Cache LRU borné (10M entrées max)
+- **Cleanup après dédup** : les filtres ne tournent que sur les variations
+  uniques (~5× moins d'appels sur un corpus à ~80% de doublons), sortie identique
 - **Streaming** : Écriture par lots de 10 000 MDP
 
 ## 📝 Licence

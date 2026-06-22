@@ -52,51 +52,65 @@ class PasswordGenerator:
         """Nombre de MDP rejetés par le cleanup."""
         return self._rejected_count
     
-    def _is_valid(self, password: str) -> bool:
-        """Vérifie si le mot de passe passe les filtres de cleanup."""
-        if self.cleanup_manager is None:
-            return True
-        return self.cleanup_manager.is_valid(password)
-    
-    def generate(self, password: str) -> Generator[str, None, None]:
+    def _generate_raw(self, password: str) -> Generator[str, None, None]:
         """
-        Génère toutes les variations d'un mot de passe.
-        
-        VERSION OPTIMISÉE: Utilise des générateurs lazy (récursifs)
-        pour éviter l'explosion mémoire. Les variations sont générées
-        à la demande, jamais stockées en bloc.
-        
+        Génère toutes les variations BRUTES (sans cleanup) d'un mot de passe.
+
+        VERSION OPTIMISÉE: générateurs lazy récursifs (O(1) mémoire). Le cleanup
+        N'EST PAS appliqué ici : il est délégué à l'appelant pour qu'il puisse le
+        faire APRÈS la déduplification (cf. generate_to_file) et ainsi ne filtrer
+        que les variations uniques — sur un corpus à ~80% de doublons, ça divise
+        par ~5 le nombre d'appels de cleanup.
+
         Args:
             password: Mot de passe source
-            
+
         Yields:
-            Variations du mot de passe
+            Toutes les variations (doublons inclus, non filtrées)
         """
+        # Locaux pour éviter les lookups d'attribut dans la récursion (hot path).
+        rules = self.rules
+        n = len(rules)
+
         def apply_rules_recursive(pwd: str, rule_index: int) -> Generator[str, None, None]:
-            """
-            Applique les règles récursivement avec lazy evaluation.
-            
-            Pour chaque mot de passe:
-            1. On le yield après toutes les règles (cas de base)
-            2. On yield aussi toutes les variations de la règle courante
-            """
             # Cas de base : toutes les règles ont été appliquées
-            if rule_index >= len(self.rules):
+            if rule_index >= n:
                 yield pwd
                 return
-            
-            rule = self.rules[rule_index]
-            
+
+            rule = rules[rule_index]
+
             # 1. Propager le mot de passe original vers les règles suivantes
             yield from apply_rules_recursive(pwd, rule_index + 1)
-            
+
             # 2. Appliquer la règle courante et propager chaque variation
             for variation in rule.apply(pwd):
                 yield from apply_rules_recursive(variation, rule_index + 1)
-        
-        # Générer toutes les variations avec filtrage
-        for pwd in apply_rules_recursive(password, 0):
-            if self._is_valid(pwd):
+
+        yield from apply_rules_recursive(password, 0)
+
+    def generate(self, password: str) -> Generator[str, None, None]:
+        """
+        Génère toutes les variations VALIDES (post-cleanup) d'un mot de passe.
+
+        Utilisé par les chemins qui ne dédupliquent pas en aval (--stdout,
+        échantillonnage). Pour la génération vers fichier, generate_to_file
+        itère directement `_generate_raw` et applique le cleanup après dédup.
+
+        Args:
+            password: Mot de passe source
+
+        Yields:
+            Variations valides du mot de passe
+        """
+        cm = self.cleanup_manager
+        if cm is None:
+            yield from self._generate_raw(password)
+            return
+
+        is_valid = cm.is_valid
+        for pwd in self._generate_raw(password):
+            if is_valid(pwd):
                 yield pwd
             else:
                 self._rejected_count += 1
@@ -158,6 +172,9 @@ class PasswordGenerator:
         OPTIMISATIONS:
         - Écriture binaire avec buffer 1 MiB (vs 8 KiB par défaut)
         - Pas de `"\\n".join()` intermédiaire : on append directement avec b"\\n"
+        - Cleanup APRÈS dédup : sur un corpus à ~80% de doublons, les filtres
+          ne tournent que sur les variations uniques (~5× moins d'appels), pour
+          une sortie strictement identique (validité = fonction pure)
         - Cache `seen` borné : au-delà de max_seen_cache, on le vide et on
           continue (laisse passer quelques doublons mais évite l'OOM)
         - `remove_duplicates=False` : zéro RAM pour la dédup (à `sort -u` ensuite)
@@ -183,17 +200,24 @@ class PasswordGenerator:
         total_sources = len(source_passwords)
         last_progress_tenths = -1
 
+        # Cleanup appliqué APRÈS la dédup (cf. _generate_raw) : sur un corpus à
+        # ~80% de doublons, on ne filtre que les ~20% de variations uniques au
+        # lieu de toutes — ~5× moins d'appels de cleanup, sortie identique.
+        cm = self.cleanup_manager
+        is_valid = cm.is_valid if cm is not None else None
+
         # Buffer 1 MiB pour réduire les syscalls write(2).
         # mode='ab' permet d'enchaîner plusieurs appels (cible_extra après main).
         mode = "ab" if append else "wb"
         with open(path, mode, buffering=1024 * 1024) as f:
             write = f.write
+            gen_raw = self._generate_raw
             batch_bytes = bytearray()
             batch_target = self.batch_size * 16  # ~16 octets/MDP en moyenne
 
             for idx, password in enumerate(source_passwords):
-                for variation in self.generate(password):
-                    # Déduplification bornée
+                for variation in gen_raw(password):
+                    # Déduplification bornée (sur les variations BRUTES)
                     if seen is not None:
                         if variation in seen:
                             continue
@@ -207,6 +231,11 @@ class PasswordGenerator:
                                 cap_hit_warned = True
                             seen.clear()
                         seen.add(variation)
+
+                    # Cleanup APRÈS dédup : ne tourne qu'une fois par variation unique
+                    if is_valid is not None and not is_valid(variation):
+                        self._rejected_count += 1
+                        continue
 
                     batch_bytes += variation.encode("utf-8", "replace")
                     batch_bytes += b"\n"
