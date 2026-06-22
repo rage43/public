@@ -1,25 +1,28 @@
 """
 CaseComboRule - Capitalisation combinatoire bornée (1 à N lettres internes)
 
-OPT-IN via --case-combo. Couvre les casses internes irrégulières que
+Règle GÉNÉRIQUE (active par défaut). Couvre les casses internes irrégulières que
 CaseVariationRule (6 motifs fixes : capitalize/upper/lower/first+last/alternate/
 title) ne produit PAS, par exemple la majuscule "début de syllabe" :
 
-    wonder --(leetspeak)--> w0nd3r --(case_combo)--> W0nD3r
-                                                     ^   ^
-                                          maj. en positions 0 et 3 uniquement
+    wonder           --(case_combo)--> WoNder, WonDer, ...
+    w0nd3r (leet)    --(case_combo)--> W0nD3r, w0nD3r, ...
+                                       ^   ^
+                            maj. en positions arbitraires (ici {0,3})
 
 CaseVariationRule ne génère jamais ce motif {0,3} : capitalize ne touche que
 la 1ère lettre, alternate met aussi d'autres lettres en majuscule, upper met
 tout. Seule une capitalisation COMBINATOIRE de k lettres arbitraires garantit
-la couverture.
+la couverture. Cette casse n'est PAS spécifiquement liée au leet (on capitalise
+de façon irrégulière aussi sans substitution) : la règle s'applique donc
+GÉNÉRIQUEMENT au mot de base ET à ses formes leet.
 
 RÈGLE CHAÎNÉE : priorité 22, donc placée APRÈS leetspeak (10) ET
-case_variation (20). Elle voit ainsi les formes leet (w0nd3r) et leur applique
-les combinaisons de casse, puis ses sorties passent dans les règles de suffixe
-(numeric/special/year). Un garde « n'agit que sur les formes tout-en-minuscules »
-(`pwd == pwd.lower()`) évite de re-multiplier les sorties déjà capitalisées par
-case_variation — sinon explosion combinatoire (case × case).
+case_variation (20). Elle voit ainsi le mot de base ET les formes leet (w0nd3r)
+et leur applique les combinaisons de casse, puis ses sorties passent dans les
+règles de suffixe (numeric/special/year). Un garde « n'agit que sur les formes
+tout-en-minuscules » (`pwd == pwd.lower()`) évite de re-multiplier les sorties
+déjà capitalisées par case_variation — sinon explosion combinatoire (case × case).
 
 Bornes anti-blowup :
 - MAX_CAPS lettres capitalisées simultanément (défaut 2 : couvre {0,3}).
@@ -36,9 +39,9 @@ class CaseComboRule(BaseRule):
     """Capitalise k lettres arbitraires (k = 1..MAX_CAPS) d'une forme minuscule."""
 
     name = "case_combo"
-    description = "Capitalisation combinatoire bornée (maj. de 1-2 lettres internes, opt-in --case-combo)"
+    description = "Capitalisation combinatoire bornée (maj. de 1-2 lettres internes, générique)"
     priority = 22  # après leetspeak (10) et case_variation (20)
-    enabled = False  # OPT-IN STRICT via flag CLI uniquement
+    enabled = True  # générique, active par défaut (désactivable via config.json)
 
     # Nombre max de lettres capitalisées simultanément.
     # 1 -> majuscule simple (inclut capitalize). 2 -> couvre les motifs type W0nD3r.

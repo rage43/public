@@ -61,9 +61,9 @@
             "description": "OPT-IN --all-yy : dates de naissance, séparateurs/spéciaux, règle isolée, ~6000 var/mot"
         },
         "case_combo": {
-            "enabled": false,
+            "enabled": true,
             "priority": 22,
-            "description": "OPT-IN --case-combo : capitalisation combinatoire bornée (maj. de 1-2 lettres internes, ex: W0nD3r), chaînée après leetspeak/case_variation"
+            "description": "Capitalisation combinatoire bornée (maj. de 1-2 lettres internes, ex: WoNder/W0nD3r), générique, chaînée après leetspeak/case_variation"
         }
     },
     "cleanup": {

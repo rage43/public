@@ -10,7 +10,7 @@ from .base_rule import BaseRule
 class LeetspeakRule(BaseRule):
     """
     Génère des variations leetspeak.
-    
+
     Utilise les substitutions les plus courantes statistiquement:
     - a → @, 4
     - e → 3
@@ -31,11 +31,11 @@ class LeetspeakRule(BaseRule):
     # Cap au-delà duquel on saute les partial (2^5=32 par mot + multiplié par
     # toutes les autres règles = trop). En-dessous : k=3 -> 3 partial, k=4 -> 10.
     MAX_PARTIAL_K = 4
-    
+
     name = "leetspeak"
     description = "Substitutions leetspeak (a→@, e→3, i→1, o→0, s→$) full+individual+partial"
     priority = 10
-    
+
     # Substitutions les plus courantes (statistiquement)
     # Chaque caractère a une liste de substitutions possibles
     SUBSTITUTIONS: Dict[str, List[str]] = {
@@ -48,7 +48,7 @@ class LeetspeakRule(BaseRule):
         'l': ['1'],
         'b': ['8'],
     }
-    
+
     def apply(self, password: str) -> Generator[str, None, None]:
         """Génère les variations leetspeak (full + individual + partial)."""
         lower_pwd = password.lower()
@@ -94,7 +94,7 @@ class LeetspeakRule(BaseRule):
                     if variation not in emitted:
                         emitted.add(variation)
                         yield variation
-    
+
     def estimate_factor(self) -> int:
         """
         Estimation du facteur multiplicatif (moyenne empirique).

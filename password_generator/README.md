@@ -84,7 +84,7 @@ python3 pwgen.py --hashcat-help
 | `duplication` | Duplication | test → testtest |
 | `leet_first_year` | Cap/leet 1ère lettre + année + spéciaux | pass → P@ss2024*** |
 | `word_concatenation` | Concat 2 mots du source (--concat) | cdr + paris → cdrparis |
-| `case_combo` | Maj. combinatoire bornée 1-2 lettres internes (--case-combo) | w0nd3r → W0nD3r |
+| `case_combo` | Maj. combinatoire bornée 1-2 lettres internes (générique) | wonder → WoNder, w0nd3r → W0nD3r |
 | `default_passwords` | MDP par défaut | - → root, admin, 123456... |
 
 ## 🔧 Configuration
